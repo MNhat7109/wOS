@@ -6,7 +6,7 @@ include build_scripts/config.mk
 run: buildimg
 	qemu-system-i386 -d int -hda $(BUILD_DIR)/$(OSNAME).img
 
-buildimg: $(BUILD_DIR)/$(OSNAME).img
+buildimg: always $(BUILD_DIR)/$(OSNAME).img
 
 $(BUILD_DIR)/$(OSNAME).img: $(BOOT_DIR)/$(OSNAME)_p1.img $(BOOT_DIR)/mbr/mbr.bin
 	@echo Building image...
@@ -36,6 +36,9 @@ bootloader:
 setup: 
 	@echo Setting up directories...
 	mkdir -p $(SRC_DIR) $(BUILD_DIR)
+
+always:
+	mkdir -p $(BUILD_DIR)
 
 clean: 
 	rm -rf $(BUILD_DIR)/**

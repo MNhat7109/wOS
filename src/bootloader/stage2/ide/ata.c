@@ -100,10 +100,10 @@ u8 ATA_access_drive(bool direction, u8 drive_number, u32 lba, u8 count, u8 selec
 u8 ATA_read_drive(u8 drive_number, u32 lba, u16 count, void* buffer)
 {
     u8 status;
-    u8 to_read = (count < 256)?count:0;
+    //u8 to_read = (count < 256)?count:0;
     if (drive_number>3||ide_devices[drive_number]._reserved==0) return 1;
     if (lba+count>ide_devices[drive_number].size) return 2;
 
-    status = ATA_access_drive(0, drive_number, lba, to_read, 0x10, (u32)buffer);
+    status = ATA_access_drive(0, drive_number, lba, count, 0x10, (u32)buffer);
     return IDE_panic(drive_number, status);
 }

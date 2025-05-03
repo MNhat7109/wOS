@@ -13,6 +13,7 @@ entry16:
     mov [bootDrive], dl
     mov [partOffset], bx
 
+
     mov ax, ds
     mov ss, ax
     mov sp, 0xFFF0
@@ -29,13 +30,13 @@ entry16:
     ; Load GDT
     xor ax, ax
     mov ds, ax
-    call load_gdt ; BUG
+    call load_gdt
     mov eax, cr0
     or al, 1
     mov cr0, eax
 
 
-    jmp dword 0x08:.main_32 ; BUG!!!
+    jmp dword 0x08:.main_32
 
 .main_32:
     [bits 32]
@@ -54,7 +55,10 @@ entry16:
     xor ebx, ebx
     mov dl, [bootDrive]
     mov bx, [partOffset]
-
+    ; Fuck it, just forgot to push the parameters to the function start
+    ; Absolute fucking crapass
+    push ebx
+    push edx
     call start
     
     cli

@@ -21,3 +21,4 @@ typedef struct
 extern disk_t* disk_packet;
 
 bool disk_init(u8 ata_drive_number, void* part_offset);
+bool disk_read_sectors(u32 lba, u32 count, void* buffer);

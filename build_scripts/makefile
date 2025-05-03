@@ -6,8 +6,6 @@ PREFIX=$(DIR)/$(TARGET)
 
 .PHONY: run
 run: $(PREFIX)/bin/$(TARGET)-ld $(PREFIX)/bin/$(TARGET)-gcc
-	@echo "export PATH=$(PREFIX)/bin:$$PATH" >> ~/.bashrc
-	@source ~/.bashrc
 
 $(PREFIX)/bin/$(TARGET)-ld: binutils
 

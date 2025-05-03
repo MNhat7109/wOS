@@ -4,7 +4,10 @@ include build_scripts/config.mk
 .PHONY: clean run
 
 run: buildimg
-	qemu-system-i386 -d int -hda $(BUILD_DIR)/$(OSNAME).img
+	qemu-system-i386 \
+	-device piix3-ide,id=ide \
+	-drive id=disk,file=$(BUILD_DIR)/$(OSNAME).img,format=raw,if=none \
+	-device ide-hd,drive=disk,bus=ide.0
 
 buildimg: always $(BUILD_DIR)/$(OSNAME).img
 

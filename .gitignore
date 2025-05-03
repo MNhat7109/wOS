@@ -1,4 +1,4 @@
 toolchains
 build/**
-files/boot.bin
-.vscode/*
+files/part1/boot.bin
+.vscode

@@ -145,7 +145,7 @@ stage1_1:
     shl ax, 16
     mov ax, [di+26]
     mov [current_cluster], eax
-    mov di, 0x1000
+    mov di, 0xA00
 
 .load_file:
     mov si, [part_offset]
@@ -171,7 +171,7 @@ stage1_1:
     mov es, ax
     mov dl, [extended_bootrec.drive_number]
     mov bx, [part_offset]
-    mov si, 0x1000
+    mov si, 0xA00
     jmp si
 
 .halt:
@@ -218,7 +218,6 @@ next_cluster:
 
 
 current_cluster: dd 0
-kernel_off: dw 0x1000
 nfe_str: db 'File not found', 0x0a,0x0d,0
 hello_str: db 'Hi guys!', 0x0a, 0x0d,0
 file_name: db 'BOOT    BIN'

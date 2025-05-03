@@ -29,12 +29,13 @@ entry16:
     ; Load GDT
     xor ax, ax
     mov ds, ax
-    call load_gdt
+    call load_gdt ; BUG
     mov eax, cr0
     or al, 1
     mov cr0, eax
 
-    jmp dword 0x08:.main_32
+
+    jmp dword 0x08:.main_32 ; BUG!!!
 
 .main_32:
     [bits 32]
@@ -42,6 +43,7 @@ entry16:
     mov ds, ax
     mov es, ax
     mov ss, ax
+
 
     mov edi, 0xB8000
     mov ax, 0

@@ -1,5 +1,4 @@
 #include "vga.h"
-#include "../string/string.h"
 #include "../io/io.h"
 
 const u32 SW = 80, SH=25;

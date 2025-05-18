@@ -1,4 +1,3 @@
 toolchains
 build/**
-src/files/part1/boot.bin
 .vscode

@@ -2,7 +2,7 @@ STAGE2_COLORSTART = \e[31m
 STAGE2_COLOREND = \e[0m
 
 TARGET_ASMFLAGS += -f elf
-TARGET_CFLAGS += -Oz -Wall -Wextra -ffreestanding -nostdlib -std=c99
+TARGET_CFLAGS += -Oz -Wall -Wextra -Wpedantic -ffreestanding -nostdlib -std=c99
 TARGET_LDFLAGS += -T linker.ld -nostdlib
 
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))

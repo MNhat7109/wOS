@@ -1,5 +1,54 @@
 bits 32
 
+%macro _x86_enter_real_mode 0
+    [bits 32]
+    jmp word 0x18:.pmode16
+
+.pmode16:
+    [bits 16]
+    mov eax, cr0
+    and al, ~1
+    mov cr0, eax
+    sidt [old_idt]
+    lidt [ivt]
+    jmp word 0:.rmode
+
+.rmode:
+    mov ax, 0
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+
+    sti
+%endmacro
+ivt: dw 0x3ff
+     dd 0
+
+%macro _x86_enter_protected_mode 0
+    cli
+
+    mov eax, cr0
+    or al, 1
+    mov cr0, eax
+    lidt [old_idt]
+
+    jmp dword 0x08:.pmode
+
+.pmode:
+    [bits 32]
+
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    mov ss, ax
+%endmacro
+old_idt: dw 0
+         dd 0
+
+        
 global _x86_outb
 _x86_outb:
     push ebp
@@ -158,3 +207,98 @@ _x86_disable_interrupt:
 global _x86_halt
 _x86_halt:
     hlt
+    ret
+
+global _x86_VBE_get_info
+_x86_VBE_get_info:
+    [bits 32]
+    push ebp
+    mov ebp, esp
+
+    _x86_enter_real_mode
+    push es
+    push edi
+
+    mov di, [bp+8]
+    mov es, di
+    xor edi, edi
+    mov di, [bp+10]
+    mov ax, 0x4F00
+    int 0x10
+    cmp ax, 0x4F
+    jne .fail
+    mov eax, 1
+    jmp .after
+.fail:
+    xor eax, eax
+.after:
+    pop edi
+    pop es
+    push eax
+    _x86_enter_protected_mode
+    pop eax
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_VBE_get_mode
+_x86_VBE_get_mode:
+    [bits 32]
+    push ebp
+    mov ebp, esp
+
+    _x86_enter_real_mode
+    push es
+    push edi
+    push ecx
+
+    mov di, [bp+8]
+    mov es, di
+    xor edi, edi
+    mov di, [bp+10]
+    mov ecx, [bp+12]
+    mov ax, 0x4F01
+    int 0x10
+    cmp ax, 0x4F
+    jne .fail
+    mov eax, 1
+    jmp .after
+.fail:
+    xor eax, eax
+.after:
+    pop ecx
+    pop edi
+    pop es
+    push eax
+    _x86_enter_protected_mode
+    pop eax
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_VBE_set_mode
+_x86_VBE_set_mode:
+    [bits 32]
+    push ebp
+    mov ebp, esp
+
+    _x86_enter_real_mode
+    push bx
+
+    mov bx, [bp+8]
+    mov ax, 0x4F02
+    int 0x10
+    cmp ax, 0x4F
+    jne .fail
+    mov eax, 1
+    jmp .after
+.fail:
+    xor eax, eax
+.after:
+    pop bx
+    push eax
+    _x86_enter_protected_mode
+    pop eax
+    mov esp, ebp
+    pop ebp
+    ret

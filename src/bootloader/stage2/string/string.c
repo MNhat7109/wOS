@@ -39,15 +39,46 @@ void* memcpy(void* dst, const void* src, u32 n)
 
 void* memmove(void* dst, const void* src, u32 n)
 {
-    u32 blknum = n/100, lastblk=n%100;
-    u8 temp[100];
-    for (u32 i =0 ;i<blknum;i++)
+    u8 * ucdst = (u8 *)dst;
+
+    const u8 * ucsrc = (const u8 *)src;
+
+    if (ucsrc==ucdst || n==0) return dst;
+    if (ucdst > ucsrc && ucdst-ucsrc < (int)n)
     {
-        memcpy(temp, src, 100);
-        memcpy(dst, temp, 100);
-        memset(temp, 0, 100);
+        int i;
+        for (i=n-1;i>=0;i--)
+            ucdst[i]=ucsrc[i];
+        return dst;
     }
-    memcpy(temp, src, lastblk);
-    memcpy(dst, temp, lastblk);
+    if (ucsrc > ucdst && ucsrc-ucdst < (int)n)
+    {
+        unsigned long i;
+        for (i=0;i<n;i++)
+            ucdst[i]=ucsrc[i];
+        return dst;
+    }
+    memcpy(dst,src, n);
     return dst;
+}
+
+const char* strchr(const char* str, char ch)
+{
+    if (!str) return NULL;
+    while (*str)
+    {
+        if (*str == ch) return str;
+        str++;
+    }
+    return NULL;
+}
+
+u32 strlen(const char* str)
+{
+    u32 i=0;
+    while (*str++)
+    {
+        i++;
+    }
+    return i;
 }

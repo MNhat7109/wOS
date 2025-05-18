@@ -37,14 +37,14 @@
 struct IDE_channel_reg_t channels[2];
 struct ide_device_t ide_devices[4];
 
-volatile u8* ide_buf=(volatile u8*)0x20000;
+volatile u8* ide_buf=(volatile u8*)0x10D00;
 u32 BAR0,BAR1,BAR2,BAR3,BAR4;
 bool read_native_prm = false, read_native_snd = false;
 
 static bool IDE_detect(pci_dev_t* dev)
 {
-    u16 class = (dev->type>>8)&0xFF, 
-    subclass = (dev->type)&0xFF;
+    u16 class = dev->type.class,
+    subclass = dev->type.sub;
     if (class != 0x01 || subclass != 0x01) return false;
     kprintf("IDE: Found controller\n");
 

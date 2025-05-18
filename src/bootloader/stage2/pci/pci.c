@@ -82,10 +82,16 @@ static bool PCI_scan_func(int bus, int device, int func, pci_dev_func_t callback
     if (device_id==0xFFFF) return false;
     u16 vendor_id = PCI_config_read_word(bus, device, func, 0);
     u16 type = get_device_type(bus, device, func);
-    u16 class = (type>>8)&0xFF;
-    u16 subclass = type&0xFF;
 
-    pci_dev_t device_pack = {.device_id=device_id,.vendor_id=vendor_id,.type=type,.bus=bus,.slot=device,.func=func};
+    pci_dev_t device_pack =
+     {
+        .device_id=device_id,
+        .vendor_id=vendor_id,
+        .type={.class=(type>>8)&0xFF,.sub=type&0xFF},
+        .bus=bus,
+        .slot=device,
+        .func=func
+    };
     return callback(&device_pack);
     // kprintf("%x:%x, class=%x,subclass=%x\n",device_id,vendor_id,class,subclass);
 }

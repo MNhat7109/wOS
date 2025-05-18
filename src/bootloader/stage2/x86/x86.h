@@ -1,5 +1,6 @@
 #pragma once
 #include "../stdint.h"
+#include <stdbool.h>
 
 void __attribute__((cdecl)) _x86_outb(u16 port, u8 value);
 u8 __attribute__((cdecl)) _x86_inb(u16 port);
@@ -15,3 +16,6 @@ void __attribute__((cdecl)) _x86_panic();
 void __attribute__((cdecl)) _x86_enable_interrupt();
 void __attribute__((cdecl)) _x86_disable_interrupt();
 void __attribute__((cdecl)) _x86_halt();
+bool __attribute__((cdecl)) _x86_VBE_get_info(u32 seg_off);
+bool __attribute__((cdecl)) _x86_VBE_get_mode(u32 seg_off, u16 mode);
+bool __attribute__((cdecl)) _x86_VBE_set_mode(u16 mode);

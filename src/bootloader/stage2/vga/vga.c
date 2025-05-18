@@ -4,20 +4,6 @@
 const u32 SW = 80, SH=25;
 volatile char* vram = (volatile char*)0xb8000;
 
-void clear(u8 bg)
-{
-    for (u32 i =0 ;i<SH; i++)
-    {
-        for (u32 j=0;j<SW;j++)
-            putcolor(j, i, bg, bg);
-    }
-}
-
-void putch(u32 x, u32 y, char ch)
-{
-    vram[2*(y*SW+x)] = ch;
-}
-
 void putcolor(u32 x, u32 y, u8 fg, u8 bg)
 {
     vram[2*(y*SW+x)+1] = (bg&0x7) << 4 | (fg&0xF);
@@ -27,26 +13,46 @@ void putcolor_internal(u32 x, u32 y, u8 color)
 {
     vram[2*(y*SW+x)+1] = color;
 }
+void VGA_clear(u8 bg)
+{
+    for (u32 i =0 ;i<SH; i++)
+    {
+        for (u32 j=0;j<SW;j++)
+            putcolor(j, i, bg, bg);
+    }
+}
 
-char getch(u32 x, u32 y)
+void VGA_putch(u32 x, u32 y, char ch, u8 fg, u8 bg)
+{
+    vram[2*(y*SW+x)] = ch;
+    putcolor(x,y,fg,bg);
+}
+
+void putch_internal(u32 x, u32 y, char ch, u8 color)
+{
+    vram[2*(y*SW+x)] = ch;
+    putcolor_internal(x,y,color);
+}
+
+
+char VGA_getch(u32 x, u32 y)
 {
     return vram[2*(y*SW+x)];
 }
 
-u8 getcolor(u32 x, u32 y)
+u8 VGA_getcolor(u32 x, u32 y)
 {
     return vram[2*(y*SW+x)+1];
 }
 
-void scroll(int lines)
+void VGA_scroll(int lines)
 {
-    u8 col = getcolor(0,0);
+    u8 col = VGA_getcolor(0,0);
     for (int i = lines; i < SH; i++)
     {
         for (int j=0;j<SW;j++)
         {
-            putcolor_internal(j, i, getcolor(j, i-lines));
-            putch(j, i, getch(j, i-lines));
+            putch_internal(j, i, VGA_getch(j, i-lines), VGA_getcolor(j, i-lines));
         }
     }
 
@@ -54,13 +60,12 @@ void scroll(int lines)
     {
         for (int j=0;j<SW;j++)
         {
-            putcolor_internal(j, i, col);
-            putch(j, i, '\0');
+            putch_internal(j, i, '\0', col);
         }
     }
 }
 
-void set_cursor(u32 x, u32 y)
+void VGA_set_cursor(u32 x, u32 y)
 {
     u32 pos = y*SW+x;
     // TODO: inb and outb

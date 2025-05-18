@@ -6,7 +6,10 @@ typedef struct
 {
     u16 device_id;
     u16 vendor_id;
-    u16 type;
+    struct
+    {
+        u8 sub, class;
+    } __attribute__((packed)) type;
     u8 bus, slot, func;
 } pci_dev_t;
 

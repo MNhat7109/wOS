@@ -84,8 +84,8 @@ typedef struct
 } __attribute__((packed)) VESA_VBE_mode_info_t;
 
 
-VESA_VBE_info_t* vbe_info = (VESA_VBE_info_t*)0x30000;
-VESA_VBE_mode_info_t* vbe_mode_info = (VESA_VBE_mode_info_t*)0x31000;
+VESA_VBE_info_t* vbe_info = (VESA_VBE_info_t*)0x32000;
+VESA_VBE_mode_info_t* vbe_mode_info = (VESA_VBE_mode_info_t*)0x33000;
 volatile char* backup_vram = (volatile char*)0x40000;
 volatile framebuffer_t fb_out;
 

@@ -5,6 +5,7 @@ include build_scripts/config.mk
 
 run: buildimg
 	qemu-system-i386 \
+	-machine q35 \
 	-device piix3-ide,id=ide \
 	-drive id=disk,file=$(BUILD_DIR)/$(OSNAME).img,format=raw,if=none \
 	-device ide-hd,drive=disk,bus=ide.0
@@ -26,9 +27,9 @@ $(BOOT_DIR)/$(OSNAME)_p1.img: $(BOOT_DIR)/stage1/stage1.bin $(BOOT_DIR)/stage2/s
 	cp $(word 2, $^) $(SRC_DIR)/files/part1/boot.bin
 	sudo mkdir -p /mnt/$(OSNAME)
 	sudo mount -t vfat -o loop $@ /mnt/$(OSNAME)
-	sudo cp $(SRC_DIR)/files/part1/** /mnt/$(OSNAME)
+	sudo cp -r $(SRC_DIR)/files/part1/** /mnt/$(OSNAME)
 	sudo umount /mnt/$(OSNAME)
-	sudo rm -rf /mnt/$(OSNAME)
+	sudo rm -rf /mnt/$(OSNAME)/**
 	
 
 $(BOOT_DIR)/stage2/stage2.bin $(BOOT_DIR)/stage1/stage1.bin $(BOOT_DIR)/mbr/mbr.bin: bootloader

@@ -50,6 +50,7 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset)
     info.partition_offset = offset;
     info.framebuffer = &fb_out;
     info.font_out = &font;
+    save_cursor();
 
     kernel_init(&boot_info);
 end:    

@@ -32,6 +32,12 @@ void reset_cursor()
     xpos=0; ypos=0;    
 }
 
+void save_cursor()
+{
+    fb_out.xpos = xpos;
+    fb_out.ypos = ypos;
+}
+
 void kputc(char ch)
 {
     switch (ch)

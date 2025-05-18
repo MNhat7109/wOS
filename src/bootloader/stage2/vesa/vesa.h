@@ -8,6 +8,7 @@ typedef struct
     u32 size;
     u32 height, width;
     u32 bpp, pitch;
+    u32 xpos, ypos;
 } __attribute__((packed)) framebuffer_t;
 
 extern volatile framebuffer_t fb_out;

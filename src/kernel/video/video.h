@@ -7,6 +7,7 @@ typedef struct
     u32 size;
     u32 height, width;
     u32 bpp, pitch;
+    u32 xpos, ypos;
 } __attribute__((packed)) framebuffer_t;
 
 typedef struct

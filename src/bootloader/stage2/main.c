@@ -1,6 +1,7 @@
 #include "stdint.h"
 #include "stdio.h"
 #include "interrupt/interrupt.h"
+#include "interrupt/pic.h"
 #include "timer/pit.h"
 #include "disk/disk.h"
 #include "fat/fat.h"
@@ -46,12 +47,11 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset)
         goto end;
     }
     kprintf("\n"); //EOF
-    struct boot_info_t info;
-    info.partition_offset = offset;
-    info.framebuffer = &fb_out;
-    info.font_out = &font;
+    boot_info.partition_offset = offset;
+    boot_info.framebuffer = &fb_out;
+    boot_info.font_out = &font;
     save_cursor();
-
+    // PIC_disable();
     kernel_init(&boot_info);
 end:    
     for (;;);

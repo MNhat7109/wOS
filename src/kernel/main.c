@@ -1,6 +1,8 @@
 #include "stdint.h"
 #include "video/video.h"
+#include "stdio.h"
 #include "string/string.h"
+#include "hal/hal.h"
 
 typedef struct 
 {
@@ -15,5 +17,10 @@ extern u8 __end;
 void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
 {
     memset(&__bss_start, 0, (&__end)-(&__bss_start));
+    video_init(boot_inf->framebuffer, boot_inf->font_out);
+    kprintf("Hello from kernel!\n");
+    // Set up GDT, IDT, ISRs, IRQs
+    HAL_init();
+
     for (;;);
 }

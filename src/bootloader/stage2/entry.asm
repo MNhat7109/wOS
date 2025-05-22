@@ -18,12 +18,14 @@ entry16:
     mov ss, ax
     mov sp, 0xFFF0
 
+    call do_e820
 
     xor eax, eax
     call test_a20_gate
     test ax, ax
     jnz .GotoPM
     call a20_enable
+
 
 .GotoPM:
     cli
@@ -57,6 +59,7 @@ entry16:
     mov bx, [partOffset]
     ; Fuck it, just forgot to push the parameters to the function start
     ; Absolute fucking crapass
+    push 0x50000
     push ebx
     push edx
     call start
@@ -155,6 +158,78 @@ a20_wait2:
     jnz a20_wait2
     ret
 
+entry_cnt equ MEMORY_MAP_OFFSET
+do_e820:
+    [bits 16]
+    push es
+    push ebx
+    push ecx
+    push edx
+    mov di, MEMORY_MAP_SEGMENT
+    mov es, di
+    mov di, MEMORY_MAP_OFFSET
+    add di, 4
+    xor bp, bp
+
+    xor ebx, ebx
+    mov edx, 0x0534D4150
+    mov eax, 0xE820
+    mov dword [es:di+20], 1 ; Force ACPI 3.0 Extended attributes
+    mov ecx, 24
+    int 0x15
+    jc .failed
+
+    mov edx, 0x0534D4150
+    cmp eax, edx
+    jne .failed
+
+    test ebx, ebx
+    je .failed
+    jmp .jin
+
+.loop:
+    mov eax, 0xE820
+    mov dword [es:di+20], 1 ; Force ACPI 3.0 Extended attributes
+    mov ecx, 24
+    int 0x15
+    jc .finish
+    mov edx, 0x0534D4150
+
+.jin:
+    jcxz .skip
+    cmp cl, 20
+    jbe .noext
+    test byte [es:di+20], 1
+    je .skip
+
+.noext:
+    mov ecx, [es:di+8]
+    or ecx, [es:di+12]
+    jz .skip
+    inc bp
+    add di, 24
+
+.skip:
+    test ebx,ebx
+    jne .loop
+
+.finish:
+    mov [es:entry_cnt], bp
+    pop edx
+    pop ecx
+    pop ebx
+    pop es
+    clc
+    ret
+
+.failed:
+    pop edx
+    pop ecx
+    pop ebx
+    pop es
+    stc
+    ret
+
 load_gdt:
     [bits 16]
     lgdt [gdtr]
@@ -194,8 +269,12 @@ gdt:
 gdtr: dw gdtr-gdt-1
      dd gdt
 
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 bootDrive: db 0
 partOffset: db 0
+MEMORY_MAP_SEGMENT equ 0x5000
+MEMORY_MAP_OFFSET equ 0

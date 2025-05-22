@@ -2,6 +2,7 @@
 #include "video/video.h"
 #include "stdio.h"
 #include "string/string.h"
+#include "memory/memory.h"
 #include "hal/hal.h"
 
 typedef struct 
@@ -9,6 +10,7 @@ typedef struct
     void* partition_offset;
     framebuffer_t* framebuffer;
     font_t* font_out;
+    memory_info_t* mem_map;
 } boot_info_t;
 
 extern u8 __bss_start;

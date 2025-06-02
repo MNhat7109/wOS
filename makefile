@@ -4,7 +4,7 @@ include build_scripts/config.mk
 .PHONY: clean run
 
 run: buildimg
-	qemu-system-i386 \
+	qemu-system-i386 -d int \
 	-machine q35 \
 	-device piix3-ide,id=ide \
 	-drive id=disk,file=$(BUILD_DIR)/$(OSNAME).img,format=raw,if=none \

@@ -127,8 +127,8 @@ bool VESA_init()
     fb_out.height = vbe_mode_info->height;
     fb_out.width = vbe_mode_info->width;
     fb_out.bpp = 32;
-    fb_out.size = fb_out.height*fb_out.width*(fb_out.bpp/8);
     fb_out.pitch = vbe_mode_info->pitch;
+    fb_out.size = fb_out.height*fb_out.pitch;
     kprintf("\n");
     //VESA_putch(0,0,'a', vga_to_24bpp_color_map[VGA_COLOR_GRAY], vga_to_24bpp_color_map[VGA_COLOR_BLACK]);
     return true;

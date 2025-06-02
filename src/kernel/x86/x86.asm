@@ -87,3 +87,36 @@ global _x86_enable_interrupt
 _x86_enable_interrupt:
     sti
     ret
+
+global _x86_load_paging
+_x86_load_paging:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [ebp+8]
+    mov cr3, eax
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_enable_paging
+_x86_enable_paging:
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+    jmp short .next
+
+.next:
+    ret
+
+global _x86_tlb_flush
+_x86_tlb_flush:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [ebp+8]
+    invlpg [eax]
+    mov esp, ebp
+    pop ebp
+    ret

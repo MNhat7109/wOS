@@ -88,6 +88,16 @@ _x86_enable_interrupt:
     sti
     ret
 
+global _x86_disable_interrupt
+_x86_disable_interrupt:
+    cli
+    ret
+
+global _x86_halt
+_x86_halt:
+    hlt
+    ret
+
 global _x86_load_paging
 _x86_load_paging:
     push ebp

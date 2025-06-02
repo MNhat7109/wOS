@@ -54,7 +54,6 @@ void ISR_init()
 void __attribute__((cdecl)) ISR_handler(registers_t* regs)
 {
     // There's a handler for this interrupt, use it.
-    kprintf("H\n");
     if (isr_handler_table[regs->vector])
         isr_handler_table[regs->vector](regs);
     else if (regs->vector >= 32)

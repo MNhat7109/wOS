@@ -7,6 +7,7 @@ u32 cx, cy, pitch, pix_width;
 u8 fw, fh;
 u32 sw, sh;
 u8* glyph;
+u32 char_sw, char_sh;
 
 void video_init(framebuffer_t* fb, font_t* fon)
 {
@@ -21,6 +22,8 @@ void video_init(framebuffer_t* fb, font_t* fon)
     fw = screen_font.width;
     fh = screen_font.height;
     glyph = (u8*)screen_font.glyph;
+
+    char_sw = sw/fw; char_sh = sh/fh;
 }
 
 void video_putpixel(u32 x, u32 y, u32 color)

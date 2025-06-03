@@ -24,10 +24,10 @@ bool font_init(const char* path)
     if (read != sizeof(psf1_header_t)) return false;
     
     if (header.magic != PSF1_MAGIC) return false;
-
+    
     font.height = header.charsize;
     font.width = 8;
-    font.glyph = (void*)(&header+sizeof(psf1_header_t));
+    font.glyph = (void*)0x41000;
     if (header.mode == PSF1_MODE512) font.glyph_count = 512;
     else font.glyph_count = 256;
     u32 glyph_size = font.glyph_count*font.height;

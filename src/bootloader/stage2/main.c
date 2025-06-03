@@ -58,6 +58,7 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset, memory_i
         kprintf("Font init failed\n");
         goto end;
     }
+
     VESA_init();
     kprintf("Loading the kernel...\n");
     kernel_func_t kernel_init;

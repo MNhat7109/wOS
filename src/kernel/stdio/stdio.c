@@ -7,6 +7,7 @@
 #define putch(_xp,_yp,_c,_f,_b) video_putch((_xp), (_yp), (_c), (_f), (_b))
 #define scroll(_l) video_scroll((_l))
 
+
 void kputc(char ch)
 {
     switch (ch)
@@ -25,12 +26,12 @@ void kputc(char ch)
             cx++;
             break;
     }
-    if (cx > sw)
+    if (cx >= char_sw)
     {
         cx=0;
         cy++;
     }
-    if (cy > sh) 
+    if (cy >= char_sh) 
     {
         scroll(1);
         cy--;

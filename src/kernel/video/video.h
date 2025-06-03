@@ -18,6 +18,9 @@ typedef struct
 } __attribute__((packed)) font_t;
 
 extern u32 cx, cy, sw, sh;
+extern u8 fw, fh;
+
+extern u32 char_sw, char_sh;
 
 void video_init(framebuffer_t* fb, font_t* fon);
 void video_putpixel(u32 x, u32 y, u32 color);

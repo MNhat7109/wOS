@@ -56,12 +56,12 @@ void kputc(char ch)
             xpos++;
             break;
     }
-    if (xpos > SW)
+    if (xpos >= SW)
     {
         xpos=0;
         ypos++;
     }
-    if (ypos > SH) 
+    if (ypos >= SH) 
     {
         scroll(1);
         ypos--;

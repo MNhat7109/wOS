@@ -3,6 +3,8 @@
 
 void __attribute__((cdecl)) _x86_GDT_load(void* gdtr, u16 cs, u16 ds);
 void __attribute__((cdecl)) _x86_IDT_load(void* idtr);
+void __attribute__((cdecl)) _x86_TSS_flush();
+void __attribute__((cdecl)) _x86_TSS_save_esp0(u32* esp0);
 void __attribute__((cdecl)) _x86_panic();
 void __attribute__((cdecl)) _x86_halt();
 void __attribute__((cdecl)) _x86_enable_interrupt();
@@ -15,3 +17,6 @@ u8 __attribute__((cdecl)) _x86_inb(u16 port);
 void __attribute__((cdecl)) _x86_load_paging(u32 address);
 void __attribute__((cdecl)) _x86_enable_paging();
 void __attribute__((cdecl)) _x86_tlb_flush(u32 virtual_address);
+
+void __attribute__((cdecl)) _x86_multitasking_save_regs(u32* esp, u32* cr3);
+void __attribute__((cdecl)) _x86_multitasking_switch_task(void* next_task);

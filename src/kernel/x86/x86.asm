@@ -40,6 +40,21 @@ _x86_IDT_load:
     pop ebp
     ret
 
+global _x86_TSS_flush
+_x86_TSS_flush:
+    mov eax, (5*8) | 0
+    ltr ax
+    ret
+
+global _x86_TSS_save_esp0
+_x86_TSS_save_esp0:
+    mov eax, esp
+    push esi
+    mov esi, [esp+8]
+    mov [esi], eax
+    pop esi
+    ret
+
 global _x86_panic
 _x86_panic:
     cli
@@ -130,3 +145,67 @@ _x86_tlb_flush:
     mov esp, ebp
     pop ebp
     ret
+
+global _x86_multitasking_save_regs
+_x86_multitasking_save_regs:
+    mov eax, esp
+    push esi
+    mov esi, [esp+8]
+    mov [esi], eax
+
+
+    mov esi, [esp+12]
+    mov eax, cr3
+    mov [esi], eax
+
+    pop esi
+    ret
+
+extern current_process
+extern tss_entry
+extern kprintf
+global _x86_multitasking_switch_task
+_x86_multitasking_switch_task:
+    cli
+
+    push ebx
+    push esi
+    push edi
+    push ebp
+    
+
+    mov edi, [current_process]
+    mov [edi+4], esp
+
+    mov esi, [esp+20] ; Get the address of first param
+    mov [current_process], esi
+    
+    ; push eax
+    mov eax, [esi+16]
+    mov ebx, [esi+8]
+    mov [tss_entry+4], ebx
+    mov edx, [esi+4]
+    mov ecx, cr3
+    cmp eax, ecx
+    ; cli
+    ; hlt
+    je .done
+    mov cr3, eax
+
+.done:
+    ; push str_f
+    ; call kprintf
+    ; pop ecx
+    ; pop eax
+
+    pop ebp
+    pop edi
+    pop esi
+    pop ebx
+
+    mov esp, edx
+
+    sti
+    ret
+
+str_f: db 'We are here', 0x0a

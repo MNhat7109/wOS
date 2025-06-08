@@ -8,6 +8,7 @@
 #include "elf/elf.h"
 #include "vesa/vesa.h"
 #include "vesa/font.h"
+#include "rsdp/rsdp.h"
 
 typedef struct
 {
@@ -24,6 +25,7 @@ struct boot_info_t
 {
     void* partition_offset;
     framebuffer_t* framebuffer;
+    system_desc_ptr_t* sdp;
     font_t* font_out;
     memory_info_t* mem_map;
 } __attribute__((packed)) boot_info;
@@ -58,7 +60,7 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset, memory_i
         kprintf("Font init failed\n");
         goto end;
     }
-
+    
     VESA_init();
     kprintf("Loading the kernel...\n");
     kernel_func_t kernel_init;
@@ -67,6 +69,12 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset, memory_i
         kprintf("Failed to load kernel\n");
         goto end;
     }
+    
+    if (!RSDP_scan(&boot_info.sdp))
+    {
+        kprintf("Could not find RSDP!\n");
+    }
+    
     kprintf("\n"); //EOF
     boot_info.partition_offset = offset;
     boot_info.framebuffer = &fb_out;

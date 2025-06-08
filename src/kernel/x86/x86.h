@@ -14,6 +14,9 @@ void __attribute__((cdecl)) crash();
 void __attribute__((cdecl)) _x86_outb(u16 port, u8 value);
 u8 __attribute__((cdecl)) _x86_inb(u16 port);
 
+void __attribute__((cdecl)) _x86_outl(u16 port, u32 value);
+u32 __attribute__((cdecl)) _x86_inl(u16 port);
+
 void __attribute__((cdecl)) _x86_load_paging(u32 address);
 void __attribute__((cdecl)) _x86_enable_paging();
 void __attribute__((cdecl)) _x86_tlb_flush(u32 virtual_address);

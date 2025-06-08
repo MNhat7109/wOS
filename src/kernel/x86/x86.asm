@@ -98,6 +98,32 @@ _x86_inb:
     pop ebp
     ret
 
+global _x86_outl
+_x86_outl:
+    push ebp
+    mov ebp, esp
+    mov dx, [ebp+8]
+    mov eax, [ebp+12]
+
+    out dx, eax
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_inl
+_x86_inl:
+    push ebp
+    mov ebp, esp
+    mov dx, [ebp+8]
+
+    xor eax,eax
+    in eax, dx
+
+    mov esp, ebp
+    pop ebp
+    ret
+
 global _x86_enable_interrupt
 _x86_enable_interrupt:
     sti
@@ -163,10 +189,9 @@ _x86_multitasking_save_regs:
 
 extern current_process
 extern tss_entry
-extern kprintf
 global _x86_multitasking_switch_task
 _x86_multitasking_switch_task:
-    cli
+    ; cli
 
     push ebx
     push esi
@@ -177,11 +202,12 @@ _x86_multitasking_switch_task:
     mov edi, [current_process]
     mov [edi+4], esp
 
+
     mov esi, [esp+20] ; Get the address of first param
     mov [current_process], esi
     
     ; push eax
-    mov eax, [esi+16]
+    mov eax, [esi+12]
     mov ebx, [esi+8]
     mov [tss_entry+4], ebx
     mov edx, [esi+4]
@@ -191,13 +217,10 @@ _x86_multitasking_switch_task:
     ; hlt
     je .done
     mov cr3, eax
+    cli
+    hlt
 
 .done:
-    ; push str_f
-    ; call kprintf
-    ; pop ecx
-    ; pop eax
-
     pop ebp
     pop edi
     pop esi
@@ -205,7 +228,6 @@ _x86_multitasking_switch_task:
 
     mov esp, edx
 
-    sti
+    ; sti
     ret
 
-str_f: db 'We are here', 0x0a

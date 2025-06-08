@@ -1,5 +1,8 @@
 #include "multitasking.h"
 #include "../memory/memory.h"
+#include "../paging/page_allocator.h"
+#include "../paging/page_table_manager.h"
+#include "../paging/paging.h"
 #include "../stdio.h"
 #include "../string/string.h"
 #include "tss.h"
@@ -21,7 +24,14 @@ void multitasking_switch(proc_ctrl_block_t* next_task)
     _x86_multitasking_switch_task(next_task);
 }
 
-void multitasking_create(void* task_fptr, u32 heap_address)
+void multitasking_thread_create_addr_space(u32* address)
+{
+    *address = page_alloc_request();
+    kprintf("%x\n", *address);
+    memset((void*)*address, 0, 0x1000);
+}
+
+void multitasking_create(void* task_fptr)
 {
     proc_ctrl_block_t* new_proc = (proc_ctrl_block_t*)memory_allocate(sizeof(proc_ctrl_block_t));
     if (!new_proc)
@@ -38,20 +48,19 @@ void multitasking_create(void* task_fptr, u32 heap_address)
     *((u32*)new_proc->stack) = (u32)task_fptr;
 
     new_proc->stack_ring0 = new_proc->stack;
-    new_proc->heap_addr = heap_address;
-    new_proc->cr3 = current_process->cr3; // TODO: Adding functionalities to this so that
-                                        // each program has its own VAS
+    multitasking_thread_create_addr_space(&new_proc->cr3);
+    memcpy((void*)new_proc->cr3, (void*)kernel_page_dir, 0x1000);
+    
     
     new_proc->next = last->next;
     last->next = (struct proc_ctrl_block_t*)new_proc;
     last = (proc_ctrl_block_t*)new_proc;
 }
 
-void multitasking_init(u32 kernel_heap_address)
+void multitasking_init()
 {
     current_process = (proc_ctrl_block_t*)memory_allocate(sizeof(proc_ctrl_block_t));
     if (!current_process) return;
-    current_process->heap_addr = kernel_heap_address;
     current_process->state = TASK_STATE_RUNNING;
     current_process->next = (struct proc_ctrl_block_t*)current_process;
     current_process->stack_ring0 = tss_entry.esp0;

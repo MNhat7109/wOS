@@ -40,6 +40,21 @@ _x86_IDT_load:
     pop ebp
     ret
 
+global _x86_TSS_flush
+_x86_TSS_flush:
+    mov eax, (5*8) | 0
+    ltr ax
+    ret
+
+global _x86_TSS_save_esp0
+_x86_TSS_save_esp0:
+    mov eax, esp
+    push esi
+    mov esi, [esp+8]
+    mov [esi], eax
+    pop esi
+    ret
+
 global _x86_panic
 _x86_panic:
     cli
@@ -83,9 +98,45 @@ _x86_inb:
     pop ebp
     ret
 
+global _x86_outl
+_x86_outl:
+    push ebp
+    mov ebp, esp
+    mov dx, [ebp+8]
+    mov eax, [ebp+12]
+
+    out dx, eax
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_inl
+_x86_inl:
+    push ebp
+    mov ebp, esp
+    mov dx, [ebp+8]
+
+    xor eax,eax
+    in eax, dx
+
+    mov esp, ebp
+    pop ebp
+    ret
+
 global _x86_enable_interrupt
 _x86_enable_interrupt:
     sti
+    ret
+
+global _x86_disable_interrupt
+_x86_disable_interrupt:
+    cli
+    ret
+
+global _x86_halt
+_x86_halt:
+    hlt
     ret
 
 global _x86_load_paging
@@ -120,3 +171,63 @@ _x86_tlb_flush:
     mov esp, ebp
     pop ebp
     ret
+
+global _x86_multitasking_save_regs
+_x86_multitasking_save_regs:
+    mov eax, esp
+    push esi
+    mov esi, [esp+8]
+    mov [esi], eax
+
+
+    mov esi, [esp+12]
+    mov eax, cr3
+    mov [esi], eax
+
+    pop esi
+    ret
+
+extern current_process
+extern tss_entry
+global _x86_multitasking_switch_task
+_x86_multitasking_switch_task:
+    ; cli
+
+    push ebx
+    push esi
+    push edi
+    push ebp
+    
+
+    mov edi, [current_process]
+    mov [edi+4], esp
+
+
+    mov esi, [esp+20] ; Get the address of first param
+    mov [current_process], esi
+    
+    ; push eax
+    mov eax, [esi+12]
+    mov ebx, [esi+8]
+    mov [tss_entry+4], ebx
+    mov edx, [esi+4]
+    mov ecx, cr3
+    cmp eax, ecx
+    ; cli
+    ; hlt
+    je .done
+    mov cr3, eax
+    cli
+    hlt
+
+.done:
+    pop ebp
+    pop edi
+    pop esi
+    pop ebx
+
+    mov esp, edx
+
+    ; sti
+    ret
+

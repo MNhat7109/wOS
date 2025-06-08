@@ -1,5 +1,4 @@
 #include "irq.h"
-#include "../../devices/i8259/pic.h"
 #include "../../devices/i8259/i8259.h"
 #include "../../stdint.h"
 #include "../../stdio.h"
@@ -8,7 +7,7 @@
 #define PIC_REMAP_OFFSET 0x20
 
 irq_handler_t irq_handler_table[16];
-const pic_driver_t* driver = NULL;
+const pic_driver_t* pic_driver = NULL;
 
 void irq_handler(registers_t* regs)
 {
@@ -20,7 +19,7 @@ void irq_handler(registers_t* regs)
         kprintf("PIC: IRQ no. %d unhandled!", irq);
     }
 
-    driver->send_eoi(irq);
+    pic_driver->send_eoi(irq);
 }
 
 void IRQ_init()
@@ -31,15 +30,15 @@ void IRQ_init()
     for (int i=0;i<drv_cnt;i++)
         if (pic_drv[i]->probe())
         {
-            driver = pic_drv[i];
+            pic_driver = pic_drv[i];
         }
 
-    if (!driver)
+    if (!pic_driver)
     {
         kprintf("PIC: No PICs found!\n");
         return;
     }
-    driver->config(PIC_REMAP_OFFSET, PIC_REMAP_OFFSET+8);
+    pic_driver->config(PIC_REMAP_OFFSET, PIC_REMAP_OFFSET+8);
     for (int i=0;i<16;i++)
     {
         ISR_reg_handler(PIC_REMAP_OFFSET+i, irq_handler);

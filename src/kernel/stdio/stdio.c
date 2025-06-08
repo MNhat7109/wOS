@@ -35,6 +35,7 @@ void kputc(char ch)
     {
         scroll(1);
         cy--;
+        cx=0;
     }
 
 }

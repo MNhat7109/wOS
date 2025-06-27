@@ -231,3 +231,40 @@ _x86_multitasking_switch_task:
     ; sti
     ret
 
+global _x86_get_cpuid
+_x86_get_cpuid:
+    push ebp
+    mov ebp, esp
+
+    mov eax, [ebp+8]
+    cpuid
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_rdmsr
+_x86_rdmsr:
+    push ebp
+    mov ebp, esp
+
+    mov ecx, [ebp+8]
+    rdmsr
+    
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_wrmsr
+_x86_wrmsr:
+    push ebp
+    mov ebp, esp
+
+    mov ecx, [ebp+8]
+    mov eax, [ebp+12]
+    mov edx, [ebp+16]
+    wrmsr
+
+    mov esp, ebp
+    pop ebp
+    ret

@@ -82,3 +82,32 @@ u32 strlen(const char* str)
     }
     return i;
 }
+
+char* strcpy(char* dst, const char* src)
+{
+    char* orig_dst = dst;
+    if (!dst) return NULL;
+    if (!src)
+    {
+        *dst='\0';
+        return dst;
+    }
+
+    while (*src)
+    {
+        *dst=*src;
+        src++;
+        dst++;
+    }
+    *dst='\0';
+    return orig_dst;
+}
+
+int strcmp(const char* s1, const char* s2)
+{
+    while (*s1 && (*s1==*s2))
+    {
+        s1++; s2++;
+    }
+    return *(u8*)s1 - *(u8*)s2;
+}

@@ -1,4 +1,9 @@
 #pragma once
-#include "pit.h"
+#include "../driver.h"
 
-const pit_driver_t* i8254_get_driver();
+#define PIT_DRV_CMD_SEND_CDW1     0
+#define PIT_DRV_CMD_RVAL          1
+#define PIT_DRV_CMD_RECEIVE_CNTER 2
+#define PIT_DRV_CMD_IDLE 0xFF
+
+const generic_driver_t* i8254_get_driver();

@@ -46,6 +46,7 @@ static bool PCI_scan_func(int bus, int device, int func, pci_dev_func_t callback
     if (device_id==0xFFFF) return false;
     u16 vendor_id = PCI_config_read_word(bus, device, func, 0);
     u16 type = get_device_type(bus, device, func);
+    u16 prog_if = PCI_config_read_word(bus, device, func, 0x8)>>8;
 
     pci_dev_t device_pack =
      {
@@ -54,7 +55,9 @@ static bool PCI_scan_func(int bus, int device, int func, pci_dev_func_t callback
         .type={.class=(type>>8)&0xFF,.sub=type&0xFF},
         .bus=bus,
         .slot=device,
-        .func=func
+        .func=func,
+        .prog_if=prog_if,
+        .mmio_phys_addr = 0
     };
     return callback(&device_pack);
     // kprintf("%x:%x, class=%x,subclass=%x\n",device_id,vendor_id,class,subclass);

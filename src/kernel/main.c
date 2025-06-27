@@ -6,9 +6,8 @@
 #include "hal/hal.h"
 #include "acpi/acpi.h"
 #include "pci/pci.h"
-#include "scheduling/timer.h"
-#include "scheduling/tss.h"
-#include "scheduling/multitasking.h"
+#include "disk/disk.h"
+#include "ktime/ktime.h"
 
 void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
 {
@@ -18,6 +17,8 @@ void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
     video_init(boot_inf->framebuffer, boot_inf->font_out);
     kprintf("Hello from kernel!\n");
     
+    // Set up ACPI
+    ACPI_init(boot_inf->sdp);
     // Set up GDT, IDT, ISRs, IRQs
     HAL_init();
     
@@ -25,21 +26,24 @@ void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
     memory_init(boot_inf->mem_map);
     memory_view_map();
     paging_init(boot_inf);
-    u32 heap_page_count = page_convert_from_bytes(page_get_free_mem()/4);
-    memory_init_alloc(0x500000, heap_page_count);
-
-    // Set up ACPI
-    ACPI_init(boot_inf->sdp);
-
+    u32 heap_page_count = 1024;
+    memory_init_alloc(0xa000000, heap_page_count);
+    
     // Set up PCI
     mcfg_t* mcfg = (mcfg_t*)ACPI_find_table("MCFG");
     PCI_init(mcfg);
-
-    // Set up storage
     
-    // Set up scheduling for multitasking
-    timer_init();
-    TSS_init();
+    // Set up HAL stage 2
+    HAL_init_stage2();
+    
+    // Set up timer for sleep()
+    ktime_init();
+    // // Set up scheduling for multitasking
+    // scheduling_init();
+
+    // // Set up storage
+    // disk_init();
+    // // __asm__ volatile("int $0x2A");
 
 end:    for (;;);
 }

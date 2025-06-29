@@ -10,6 +10,11 @@ u64 hpet_freq;
 
 const generic_driver_t* hpet_generic_driver = NULL;
 
+u64 ktime_get_freq()
+{
+    return hpet_freq;
+}
+
 u64 ktime_read_counter()
 {
     hpet_generic_driver->write(DRIVER_CMD, HPET_DRV_CMD_SEND_MMIO_OFFSET);

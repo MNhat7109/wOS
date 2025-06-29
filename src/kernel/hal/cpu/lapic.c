@@ -21,11 +21,18 @@ bool LAPIC_init(u32 lapic_base)
     return true;
 }
 
-void LAPIC_timer_init(u8 vector, u32 tick_count)
+void LAPIC_timer_init(u8 vector, u32 tick_count, u8 timer_mode, u8 divide_mode)
 {
-    LAPIC_write(0x3E0, 0b1011);
-    LAPIC_write(0x320, vector | (1<<17));
-    LAPIC_write(0x380, tick_count);
+    // Example: div mode 3 -> 0b111
+    // Low = 0b111&3 = 0b11
+    // Hi = ((0b111>>2)&3)<<1 = 0b1 << 1 = 0b10
+    // LAPIC div = low | (hi<<2) = 0b11 | (0b10<<2) = 0b1011
+    u8 div_mode_lo = divide_mode & 0b11;
+    u8 div_mode_hi = (divide_mode>>2) & 0b11;
+    div_mode_hi <<= 1;
+    LAPIC_write(LAPIC_REG_DIVCFG, div_mode_lo | (div_mode_hi<<2));
+    LAPIC_write(LAPIC_REG_LVT, vector | (1<<16) | ((timer_mode&3)<<17));
+    LAPIC_write(LAPIC_REG_INITCNT, tick_count);
 }
 
 void LAPIC_send_eoi()

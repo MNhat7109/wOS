@@ -1,19 +1,21 @@
 #pragma once
-#include "ahci_info.h"
+#include <stdbool.h>
+#include "../../stdint.h"
 
-int ahci_find_avl_cmd_slots(ahci_port_t* port);
-void ahci_bios_os_handoff();
-void ahci_hba_reset();
-void ahci_port_reset(hba_port_t* port);
-void ahci_soft_reset(ahci_port_t* port);
+#define AHCI_CMD_HUNG -2
+#define AHCI_CMD_BUSY -1
+#define AHCI_CMD_FAILURE 0
+#define AHCI_CMD_SUCCESS 1
+#define AHCI_CMD_UNSUPPORTED 2
 
-void ahci_stop_cmd(hba_port_t* port, bool reset);
-void ahci_stop_fis(hba_port_t* port, bool reset);
-void ahci_port_shutdown(hba_port_t* port);
+struct ahci_driver_t;
+typedef struct ahci_driver_t ahci_driver_t;
 
-void ahci_start_cmd(hba_port_t* port, bool reset);
-void ahci_start_fis(hba_port_t* port, bool reset);
-void ahci_port_startup(hba_port_t* port);
-void ahci_probe_port();
+struct ahci_device_entry_t;
+typedef struct ahci_device_entry_t ahci_device_entry_t;
 
-bool ahci_get_port_attributes(ahci_port_t* port, void* out_buffer);
+int ahci_find_avl_cmd_slots(ahci_device_entry_t* port);
+
+int ahci_identify(ahci_driver_t* self, ahci_device_entry_t* port, void* out_buffer);
+int ahci_read_sectors(ahci_driver_t* self, ahci_device_entry_t* port, u64 lba, u16 count, void* buffer);
+int ahci_write_sectors(ahci_driver_t* self, ahci_device_entry_t* port, u64 lba, u16 count, void* buffer);

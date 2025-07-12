@@ -98,6 +98,32 @@ _x86_inb:
     pop ebp
     ret
 
+global _x86_outw
+_x86_outw:
+    push ebp
+    mov ebp, esp
+    mov dx, [ebp+8]
+    mov ax, [ebp+12]
+
+    out dx, ax
+
+    mov esp, ebp
+    pop ebp
+    ret
+
+global _x86_inw
+_x86_inw:
+    push ebp
+    mov ebp, esp
+    mov dx, [ebp+8]
+
+    xor eax,eax
+    in ax, dx
+
+    mov esp, ebp
+    pop ebp
+    ret
+
 global _x86_outl
 _x86_outl:
     push ebp

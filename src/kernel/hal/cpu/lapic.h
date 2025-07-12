@@ -38,7 +38,7 @@ typedef struct
 #define LAPIC_SVR_APIC (1<<8)
 
 bool LAPIC_init(u32 lapic_base);
-void LAPIC_timer_init(u8 vector, u32 tick_count, u8 timer_mode, u8 divide_mode);
+void LAPIC_timer_init(bool is_int, u8 vector, u32 tick_count, u8 timer_mode, u8 divide_mode);
 u32 LAPIC_get_id();
 void LAPIC_send_eoi();
 // TODO: void LAPIC_cpu_init();

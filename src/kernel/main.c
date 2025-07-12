@@ -8,6 +8,7 @@
 #include "pci/pci.h"
 #include "disk/disk.h"
 #include "ktime/ktime.h"
+#include "scheduling/scheduling.h"
 
 void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
 {
@@ -38,12 +39,11 @@ void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
     
     // Set up timer for sleep()
     ktime_init();
-    // // Set up scheduling for multitasking
-    // scheduling_init();
+    // Set up scheduling for multitasking
+    scheduling_init();
 
-    // // Set up storage
-    // disk_init();
-    // // __asm__ volatile("int $0x2A");
+    // Set up storage
+    disk_init();
 
 end:    for (;;);
 }

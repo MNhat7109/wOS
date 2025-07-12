@@ -7,8 +7,9 @@
 #define UINT32_MAX 0xFFFFFFFFU
 
 u64 hpet_freq;
+u32 hpet_phys;
 
-const generic_driver_t* hpet_generic_driver = NULL;
+const struct hpet_driver_t* hpet_generic_driver = NULL;
 
 u64 ktime_get_freq()
 {
@@ -17,13 +18,7 @@ u64 ktime_get_freq()
 
 u64 ktime_read_counter()
 {
-    hpet_generic_driver->write(DRIVER_CMD, HPET_DRV_CMD_SEND_MMIO_OFFSET);
-    hpet_generic_driver->write(DRIVER_DATA, 0xF0);
-    hpet_generic_driver->write(DRIVER_CMD, HPET_DRV_CMD_RECIEVE_MMIO_LO);
-    u32 cnt_lo = hpet_generic_driver->read();
-    hpet_generic_driver->write(DRIVER_CMD, HPET_DRV_CMD_RECIEVE_MMIO_HI);
-    u32 cnt_hi = hpet_generic_driver->read();
-    return cnt_lo | (cnt_hi<<32);
+    return hpet_generic_driver->mmio_utils.readq(hpet_phys, 0xF0);
 }
 
 void sleep(u64 ms)
@@ -36,17 +31,22 @@ void sleep(u64 ms)
 void ktime_init()
 {
     driver_load(hpet_get_driver);
-    hpet_generic_driver = driver_get("HPET");
+    hpet_generic_driver = (struct hpet_driver_t*)driver_get("HPET");
     if (!hpet_generic_driver)
     {
         kprintf("Timer: HPET not found\n");
         return;
     } 
-    hpet_generic_driver->config();
 
-    hpet_generic_driver->write(DRIVER_CMD, HPET_DRV_CMD_SEND_MMIO_OFFSET);
-    hpet_generic_driver->write(DRIVER_DATA, 0x00);
-    hpet_generic_driver->write(DRIVER_CMD, HPET_DRV_CMD_RECIEVE_MMIO_HI);
-    u32 fs_per_tick =hpet_generic_driver->read();
+    if (!hpet_generic_driver->driver_hdr.probe((struct generic_driver_t*)hpet_generic_driver))
+    {
+        kprintf("Timer: HPET is buggy or faulty\n");
+        return;
+    }
+    
+    hpet_generic_driver->driver_hdr.config((struct generic_driver_t*)hpet_generic_driver);
+    hpet_phys = hpet_generic_driver->hpet_acpi_table->hpet_address.base;
+
+    u32 fs_per_tick=hpet_generic_driver->mmio_utils.readq(hpet_phys, 0x00)>>32;
     hpet_freq = 1000000000000000ULL / fs_per_tick;
 }

@@ -1,5 +1,6 @@
 #include "lapic.h"
 #include "../../paging/paging.h"
+#include "../../stdio.h"
 
 volatile u32* lapic;
 
@@ -21,7 +22,7 @@ bool LAPIC_init(u32 lapic_base)
     return true;
 }
 
-void LAPIC_timer_init(u8 vector, u32 tick_count, u8 timer_mode, u8 divide_mode)
+void LAPIC_timer_init(bool is_int, u8 vector, u32 tick_count, u8 timer_mode, u8 divide_mode)
 {
     // Example: div mode 3 -> 0b111
     // Low = 0b111&3 = 0b11
@@ -31,8 +32,10 @@ void LAPIC_timer_init(u8 vector, u32 tick_count, u8 timer_mode, u8 divide_mode)
     u8 div_mode_hi = (divide_mode>>2) & 0b11;
     div_mode_hi <<= 1;
     LAPIC_write(LAPIC_REG_DIVCFG, div_mode_lo | (div_mode_hi<<2));
-    LAPIC_write(LAPIC_REG_LVT, vector | (1<<16) | ((timer_mode&3)<<17));
+    LAPIC_write(LAPIC_REG_LVT, (vector | ((!is_int)<<16) | ((timer_mode&3)<<17)));
     LAPIC_write(LAPIC_REG_INITCNT, tick_count);
+    kprintf("DIVCFG: %x, LVT: %x, INITCNT: %x\n", LAPIC_read(LAPIC_REG_DIVCFG), LAPIC_read(LAPIC_REG_LVT)
+    , LAPIC_read(LAPIC_REG_INITCNT));
 }
 
 void LAPIC_send_eoi()

@@ -9,10 +9,16 @@ void __attribute__((cdecl)) _x86_panic();
 void __attribute__((cdecl)) _x86_halt();
 void __attribute__((cdecl)) _x86_enable_interrupt();
 void __attribute__((cdecl)) _x86_disable_interrupt();
+u64 __attribute__((cdecl)) _x86_get_cpuid(u32 eax);
+u64 __attribute__((cdecl)) _x86_rdmsr(u32 ecx);
+void __attribute__((cdecl)) _x86_wrmsr(u32 ecx, u64 msr);
 void __attribute__((cdecl)) crash();
 
 void __attribute__((cdecl)) _x86_outb(u16 port, u8 value);
 u8 __attribute__((cdecl)) _x86_inb(u16 port);
+
+void __attribute__((cdecl)) _x86_outw(u16 port, u16 value);
+u16 __attribute__((cdecl)) _x86_inw(u16 port);
 
 void __attribute__((cdecl)) _x86_outl(u16 port, u32 value);
 u32 __attribute__((cdecl)) _x86_inl(u16 port);

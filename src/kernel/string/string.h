@@ -8,3 +8,5 @@ void* memmove(void* dst, const void* src, u32 n);
 
 const char* strchr(const char* str, char ch);
 u32   strlen(const char* str);
+int   strcmp(const char* s1, const char* s2);
+char* strcpy(char* dst, const char* src);

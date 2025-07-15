@@ -1,131 +1,119 @@
 #include "i8259.h"
-#include "../../io/io.h"
+#include "../driver.h"
 
-#define PIC1_CMD_PORT 0x20
-#define PIC2_CMD_PORT 0xA0
-#define PIC1_DATA_PORT (PIC1_CMD_PORT+1)
-#define PIC2_DATA_PORT (PIC2_CMD_PORT+1)
-
-#define PIC_ICW1_ICW4 0x01
-#define PIC_ICW1_SNGL 0x02
-#define PIC_ICW1_ITR4 0x04
-#define PIC_ICW1_LVLL 0x08
-#define PIC_ICW1_INIT 0x10
-
-#define PIC_ICW4_8086 0x01
-#define PIC_ICW4_AUTO 0x02
-#define PIC_ICW4_BUS_MASTER 0x04
-#define PIC_ICW4_BUS_SLAVE  0x00
-#define PIC_ICW4_BUFFERRED  0x08
-#define PIC_ICW4_SFNM 0x10
-
-#define PIC_CMD_EOI 0x20
-#define PIC_CMD_READ_IRR 0x0A
-#define PIC_CMD_READ_ISR 0x0B
-
-u16 current_mask = 0xFFFF;
-
-void i8259_set_mask(u16 mask)
+void i8259_pio_wait(struct pic_driver_t* pic_self)
 {
-    current_mask = mask;
-    outb(PIC1_DATA_PORT, current_mask&0xFF);
-    iowait();
-    outb(PIC2_DATA_PORT, current_mask>>8);
-    iowait();
+    pic_self->pio_utils.writeb(0x80, 0);
 }
 
-u16 i8259_get_mask()
+void i8259_set_mask(struct pic_driver_t* pic_self, u16 mask)
 {
-    return inb(PIC1_DATA_PORT) | (inb(PIC2_DATA_PORT)<<8);
+    pic_self->__current_mask = mask;
+    pic_self->pio_utils.writeb(PIC1_DATA_PORT, pic_self->__current_mask&0xFF);
+    i8259_pio_wait(pic_self);
+    pic_self->pio_utils.writeb(PIC2_DATA_PORT, pic_self->__current_mask>>8);
+    i8259_pio_wait(pic_self);
 }
 
-void i8259_config(u8 offset_pic1, u8 offset_pic2)
+u16 i8259_get_mask(struct pic_driver_t* pic_self)
 {
-    i8259_set_mask(0xFFFF);
+    return pic_self->pio_utils.readb(PIC1_DATA_PORT) 
+    | (pic_self->pio_utils.readb(PIC2_DATA_PORT)<<8);
+}
+
+void i8259_config(struct generic_driver_t* driver)
+{
+    struct pic_driver_t* pic_self = (struct pic_driver_t*)driver;
     // ICW1
-    outb(PIC1_CMD_PORT, PIC_ICW1_INIT | PIC_ICW1_ICW4);
-    iowait();
-    outb(PIC2_CMD_PORT, PIC_ICW1_INIT | PIC_ICW1_ICW4);
-    iowait();
+    pic_self->pio_utils.writeb(PIC1_CMD_PORT, PIC_ICW1_INIT | PIC_ICW1_ICW4);
+    i8259_pio_wait(pic_self);
+    pic_self->pio_utils.writeb(PIC2_CMD_PORT, PIC_ICW1_INIT | PIC_ICW1_ICW4);
+    i8259_pio_wait(pic_self);
     // ICW2
-    outb(PIC1_DATA_PORT, offset_pic1);
-    iowait();
-    outb(PIC2_DATA_PORT, offset_pic2);
-    iowait();
+    pic_self->pio_utils.writeb(PIC1_DATA_PORT, pic_self->offset_pic1);
+    i8259_pio_wait(pic_self);
+    pic_self->pio_utils.writeb(PIC2_DATA_PORT, pic_self->offset_pic2);
+    i8259_pio_wait(pic_self);
     // ICW3
-    outb(PIC1_DATA_PORT, 0b00000100);
-    iowait();
-    outb(PIC2_DATA_PORT, 0b00000010);
-    iowait();
+    pic_self->pio_utils.writeb(PIC1_DATA_PORT, 0b00000100);
+    i8259_pio_wait(pic_self);
+    pic_self->pio_utils.writeb(PIC2_DATA_PORT, 0b00000010);
+    i8259_pio_wait(pic_self);
     // ICW4
-    outb(PIC1_DATA_PORT, PIC_ICW4_8086);
-    iowait();
-    outb(PIC2_DATA_PORT, PIC_ICW4_8086);
-    iowait();
+    pic_self->pio_utils.writeb(PIC1_DATA_PORT, PIC_ICW4_8086);
+    i8259_pio_wait(pic_self);
+    pic_self->pio_utils.writeb(PIC2_DATA_PORT, PIC_ICW4_8086);
+    i8259_pio_wait(pic_self);
 
-    outb(PIC1_DATA_PORT, 0);
-    iowait();
-    outb(PIC2_DATA_PORT, 0);
-    iowait();
+    pic_self->pio_utils.writeb(PIC1_DATA_PORT, 0);
+    i8259_pio_wait(pic_self);
+    pic_self->pio_utils.writeb(PIC2_DATA_PORT, 0);
+    i8259_pio_wait(pic_self);
 
-    i8259_set_mask(0xFFFF);
+    i8259_set_mask(pic_self, 0xFFFF);
 }
 
-void i8259_mask(int irq)
+void i8259_mask(struct pic_driver_t* pic_self, int irq)
 {
-    i8259_set_mask(current_mask | (1<<irq));
+    i8259_set_mask(pic_self, pic_self->__current_mask | (1<<irq));
 }
 
-void i8259_unmask(int irq)
+void i8259_unmask(struct pic_driver_t* pic_self, int irq)
 {
-    i8259_set_mask(current_mask & ~(1<<irq));
+    i8259_set_mask(pic_self, pic_self->__current_mask & ~(1<<irq));
 }
 
-void i8259_send_eoi(int irq)
+void i8259_send_eoi(struct pic_driver_t* pic_self, int irq)
 {
     if (irq >= 8)
-        outb(PIC2_CMD_PORT, PIC_CMD_EOI);
-    outb(PIC1_CMD_PORT, PIC_CMD_EOI);
+        pic_self->pio_utils.writeb(PIC2_CMD_PORT, PIC_CMD_EOI);
+    pic_self->pio_utils.writeb(PIC1_CMD_PORT, PIC_CMD_EOI);
 }
 
-void i8259_disable()
+void i8259_disable(struct generic_driver_t* driver)
 {
-    i8259_set_mask(0xFFFF);
+    i8259_set_mask((struct pic_driver_t*)driver,0xFFFF);
 }
 
-u16 i8259_read_isr()
+u16 i8259_read_isr(struct pic_driver_t* pic_self)
 {
-    outb(PIC1_CMD_PORT, PIC_CMD_READ_ISR);
-    outb(PIC2_CMD_PORT, PIC_CMD_READ_ISR);
-    return ((u16)inb(PIC1_DATA_PORT)) | ((u16)inb(PIC2_DATA_PORT));
+    pic_self->pio_utils.writeb(PIC1_CMD_PORT, PIC_CMD_READ_ISR);
+    pic_self->pio_utils.writeb(PIC2_CMD_PORT, PIC_CMD_READ_ISR);
+    return ((u16)pic_self->pio_utils.readb(PIC1_DATA_PORT)) | ((u16)pic_self->pio_utils.readb(PIC2_DATA_PORT));
 }
 
-u16 i8259_read_irr()
+u16 i8259_read_irr(struct pic_driver_t* pic_self)
 {
-    outb(PIC1_CMD_PORT, PIC_CMD_READ_IRR);
-    outb(PIC2_CMD_PORT, PIC_CMD_READ_IRR);
-    return ((u16)inb(PIC1_DATA_PORT)) | ((u16)inb(PIC2_DATA_PORT));
+    pic_self->pio_utils.writeb(PIC1_CMD_PORT, PIC_CMD_READ_IRR);
+    pic_self->pio_utils.writeb(PIC2_CMD_PORT, PIC_CMD_READ_IRR);
+    return ((u16)pic_self->pio_utils.readb(PIC1_DATA_PORT)) | ((u16)pic_self->pio_utils.readb(PIC2_DATA_PORT));
 }
 
-bool i8259_probe()
+bool i8259_probe(struct generic_driver_t* driver)
 {
-    i8259_disable();
-    i8259_set_mask(0x1337);
-    return i8259_get_mask() == 0x1337;
+    struct pic_driver_t* pic_self = (struct pic_driver_t*)driver;
+    i8259_disable(driver);
+    i8259_set_mask(pic_self, 0x1337);
+    return i8259_get_mask(pic_self) == 0x1337;
 }
 
-pic_driver_t i8259_driver;
+struct pic_driver_t i8259_driver = {
+    .driver_hdr = {
+        .name = "8259 PIC",
+        .probe = &i8259_probe,
+        .config = &i8259_config,
+        .disable = &i8259_disable
+    },
+    .mask = &i8259_mask,
+    .unmask = &i8259_unmask,
+    .send_eoi = &i8259_send_eoi,
+    .read_isr = &i8259_read_isr,
+    .read_irr = &i8259_read_irr,
+    .read_imr = &i8259_get_mask
+};
 
-const pic_driver_t* i8259_get_driver()
+const struct generic_driver_t* i8259_get_driver()
 {
-    i8259_driver.name = "8259 PIC";
-    i8259_driver.config = &i8259_config;
-    i8259_driver.probe = &i8259_probe;
-    i8259_driver.mask = &i8259_mask;
-    i8259_driver.unmask = &i8259_unmask;
-    i8259_driver.send_eoi = &i8259_send_eoi;
-    i8259_driver.disable = &i8259_disable;
-    i8259_driver.read_irr = &i8259_read_irr;
-    i8259_driver.read_isr = &i8259_read_isr;
-    return &i8259_driver;
+    i8259_driver.pio_utils = pio_load_defaults();
+    return (struct generic_driver_t*)&i8259_driver;
 }

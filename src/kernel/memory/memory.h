@@ -1,5 +1,6 @@
 #pragma once
 #include "../stdint.h"
+#include <stdbool.h>
 
 #define MEMORY_TYPE_FREE 1
 #define MEMORY_TYPE_RESERVED 2

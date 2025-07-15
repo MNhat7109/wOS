@@ -4,11 +4,14 @@ include build_scripts/config.mk
 .PHONY: clean run
 
 run: buildimg
-	qemu-system-i386 -d int \
-	-machine q35 \
+	qemu-system-i386 --trace "ahci.*" -d int \
+	-machine q35 -M hpet=on \
 	-device piix3-ide,id=ide \
+	-device ahci,id=ahci \
 	-drive id=disk,file=$(BUILD_DIR)/$(OSNAME).img,format=raw,if=none \
-	-device ide-hd,drive=disk,bus=ide.0
+	-device ide-hd,drive=disk,bus=ide.0 \
+	-drive id=disk0,file=$(BUILD_DIR)/$(OSNAME)_clone.img,format=raw,if=none \
+	-device ide-hd,drive=disk0,bus=ahci.0
 
 buildimg: always $(BUILD_DIR)/$(OSNAME).img
 

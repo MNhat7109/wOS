@@ -1,5 +1,6 @@
 #include "pci.h"
 #include "../paging/paging.h"
+#include "../stdio.h"
 
 typedef struct
 {
@@ -28,7 +29,9 @@ bool PCI_scan_func(u32 base, u8 func, pci_dev_func_t callback)
         .type = {.sub = dev_hdr->sub, .class = dev_hdr->class},
         .bus = (func_addr >> 20)&0xFF,
         .slot = (func_addr >> 15)&0xFF,
-        .func = (func_addr >> 12)&0xFF
+        .func = (func_addr >> 12)&0xFF,
+        .prog_if = dev_hdr->prog_if,
+        .mmio_phys_addr = func_addr
     };
 
     return callback(&dev_pack);
@@ -41,10 +44,6 @@ bool PCI_scan_device(u32 base, u8 device, pci_dev_func_t callback)
     page_manager_map_memory(dev_addr, dev_addr);
 
     pci_dev_hdr_t* dev_hdr = (pci_dev_hdr_t*)dev_addr;
-    
-    if (dev_hdr->device_id == 0 || dev_hdr->device_id == 0xFFFF)
-        return false;
-
     u8 hdr_type = dev_hdr->hdr_type;
     bool is_multi_func = (hdr_type & 0x80) >> 7;
 
@@ -53,6 +52,7 @@ bool PCI_scan_device(u32 base, u8 device, pci_dev_func_t callback)
         if (PCI_scan_func(dev_addr, 0, callback)) return true;
         return false;
     }
+
 
     for (u8 func=0; func<8; func++)
         if (PCI_scan_func(dev_addr, func, callback)) return true;
@@ -64,12 +64,9 @@ bool PCI_scan_bus(u32 base, u8 bus, pci_dev_func_t callback)
     u32 bus_offset = bus << 20;
     u32 bus_addr = base+bus_offset;
     page_manager_map_memory(bus_addr, bus_addr);
-
+    
     pci_dev_hdr_t* dev_hdr = (pci_dev_hdr_t*)bus_addr;
     
-    if (dev_hdr->device_id == 0 || dev_hdr->device_id == 0xFFFF)
-        return false;
-
     for (u8 dev=0; dev<32; dev++)
         if (PCI_scan_device(bus_addr, dev, callback)) return true;
     return false;
@@ -78,10 +75,11 @@ bool PCI_scan_bus(u32 base, u8 bus, pci_dev_func_t callback)
 bool PCI_scan_mm(mcfg_t* mcfg_table, pci_dev_func_t callback)
 {
     u32 entries = (mcfg_table->table_hdr.length - sizeof(mcfg_t))/sizeof(pci_dev_cfg_t);
+
     for (u32 i=0;i<entries;i++)
     {
-        u32* ptr_to_devs = (u32*)(mcfg_table + sizeof(mcfg_t));
-        pci_dev_cfg_t* dev_conf = (pci_dev_cfg_t*)ptr_to_devs[i];
+        pci_dev_cfg_t* dev_conf = (pci_dev_cfg_t*)((u32)mcfg_table + sizeof(mcfg_t)+sizeof(pci_dev_cfg_t)*i);
+        //kprintf("%x\n", dev_conf->bus_end);
         for (u8 bus = dev_conf->bus_start; bus <= dev_conf->bus_end; bus++)
         {
             if (PCI_scan_bus(dev_conf->base, bus, callback))

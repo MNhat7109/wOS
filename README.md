@@ -14,7 +14,7 @@ But, if my naming here is so arse for some reason, or if you guys want a better 
 
 ## Status
 
-**Current Version:** *0.1-canary-2*
+**Current Version:** *0.1-canary-1*
 
 - ✔ VGA Text Mode
 - ✔ VESA Linear Mode
@@ -120,7 +120,7 @@ There will be 4–5 *Canary* stages. The first 4 cover essential features for th
 
 **WARNING:** All *Canary* builds contain *cutting-edge features* so sharp they might *chop your PC into smithereens*. Therefore, if you want to test the latest features, using a **Virtual Machine** is strongly recommended. If you still choose to run them on your real PC, do so at your own risk, you stubborn little pookie bear.
 
-**Status:** *Canary 2*
+**Status:** *Canary 1*
 
 ***End-of-stage goals:***
 

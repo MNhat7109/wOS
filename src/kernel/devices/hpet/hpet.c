@@ -1,63 +1,68 @@
 #include "hpet.h"
+#include "hpet_defs.h"
+#include "hpet_utils.h"
+
+#include "../acpi/acpi.h"
+#include "../../paging/paging.h"
+
 #include "../../stdint.h"
 #include "../../stdio.h"
 #include <stdbool.h>
-#include "../../paging/paging.h"
 
-bool hpet_probe(struct generic_driver_t* driver)
+struct hpet_shared_t hpet;
+
+void hpet_probe(struct generic_driver_t* driver)
 {
     struct hpet_driver_t* hpet_self = (struct hpet_driver_t*)driver;
-    hpet_self->hpet_acpi_table = (hpet_t*)ACPI_find_table("HPET");
-    return hpet_self->hpet_acpi_table;
-}
+    hpet.acpi_dev = (struct acpi_driver_t*)driver_get("ACPI");
+    if (!driver_run((struct generic_driver_t*)hpet.acpi_dev))
+    {
+        driver_log_state(driver, DRIVER_LOG_ERROR, "Failed to start ACPI driver");
+        return;
+    }
 
-void hpet_read_capabilities(struct hpet_driver_t* hpet_self)
-{
-    u32 hpet_phys = hpet_self->hpet_acpi_table->hpet_address.base;
-    u64 hpet_cap = hpet_self->mmio_utils.readq(hpet_phys, 0);
-    kprintf("HPET Capability: Revision ID: %u\n"
-        , (hpet_cap>>0) & 0xFF);
-    kprintf("HPET Capability: Timer Count: %u\n"
-        , ((hpet_cap>>8) & 0x1F)-1);
-    kprintf("HPET Capability: 64-bit Mode Counter: %s\n"
-        , (const char*[]){"no", "yes"}[(hpet_cap>>13) & 0x1]);
-    kprintf("HPET Capability: Legacy Replacement Support: %s\n"
-        , (const char*[]){"no", "yes"}[(hpet_cap>>15) & 0x1]);
-    kprintf("HPET Capability: Vendor ID: %u\n"
-        , (hpet_cap>>16) & 0xFFFF);
-    kprintf("HPET Capability: Femtoseconds per Tick: %u\n"
-        , (hpet_cap>>32) & 0xFFFFFFFF);
+    hpet.hpet_table = (hpet_t*)hpet.acpi_dev->get_table(hpet.acpi_dev, "HPET");
+    if (!hpet.hpet_table)
+    {
+        driver_log_state(driver, DRIVER_LOG_ERROR, "HPET table not found");
+        return;
+    }
 }
 
 void hpet_config(struct generic_driver_t* driver)
 {
     struct hpet_driver_t* hpet_self = (struct hpet_driver_t*)driver;
-    u32 hpet_phys = hpet_self->hpet_acpi_table->hpet_address.base;
-    kprintf("HPET: Base=0x%x\n", hpet_phys);
-    page_manager_map_memory(hpet_phys, hpet_phys);
-    kprintf("HPET: Reading capabilities\n");
+   
+    hpet.hpet_phys_base = hpet.hpet_table->hpet_address.base;
+    kprintf("HPET: Base=0x%x\n", hpet.hpet_phys_base); 
+    // TODO: Will update this after refining log_state() to include formatted strings
+    page_manager_map_memory(hpet.hpet_phys_base, hpet.hpet_phys_base);
+
+    driver_log_state(driver, DRIVER_LOG_NOTICE, "Reading capabilities");
     hpet_read_capabilities(hpet_self);
 
-    hpet_self->mmio_utils.writeq(hpet_phys, 0xF0, 0); // Reset main counter
-    u64 conf = hpet_self->mmio_utils.readq(hpet_phys, 0x10);
+    hpet_self->write(hpet_self, 0xF0, 0); // Reset main counter
+    u64 conf = hpet_self->read(hpet_self, 0x10);
     conf|=1;
-    hpet_self->mmio_utils.writeq(hpet_phys, 0x10, conf); // Enable HPET
+    hpet_self->write(hpet_self, 0x10, conf); // Enable HPET
 }
 
 void hpet_disable(struct generic_driver_t* driver)
 {
-    struct hpet_driver_t* hpet_self = (struct hpet_driver_t*)driver;
-    u32 hpet_phys = hpet_self->hpet_acpi_table->hpet_address.base;
-    u64 conf = hpet_self->mmio_utils.readq(hpet_phys, 0x10);
-    conf &= ~1;
-    hpet_self->mmio_utils.writeq(hpet_phys, 0x10, conf);
-
-    if (!page_manager_unmap_memory(hpet_phys))
+    bool ok;
+    ok = page_manager_unmap_memory(hpet.hpet_phys_base);
+    if (!ok)
     {
-        kprintf("HPET: Could not unmap HPET MMIO address!\n");
+        driver_log_state(driver, DRIVER_LOG_ERROR, "Cannot unmap HPET base address");
         return;
     }
-    // TODO: ACPI unmap table
+
+    ok = page_manager_unmap_memory((u32)hpet.hpet_table);
+    if (!ok)
+    {
+        driver_log_state(driver, DRIVER_LOG_ERROR, "Cannot unmap HPET table");
+        return;
+    }
 }
 
 struct hpet_driver_t hpet_driver = 
@@ -66,9 +71,13 @@ struct hpet_driver_t hpet_driver =
         .name = "HPET",
         .config = &hpet_config,
         .probe = &hpet_probe,
-        .disable = &hpet_disable
+        .disable = &hpet_disable,
+        .state = DRIVER_STATE_UNPROBED
     },
-    .hpet_acpi_table = NULL
+    .read = &hpet_read,
+    .write = &hpet_write,
+    .read32 = &hpet_read32,
+    .write32 = &hpet_write32,
 };
 
 const struct generic_driver_t* hpet_get_driver()

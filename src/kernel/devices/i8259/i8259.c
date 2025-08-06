@@ -89,12 +89,16 @@ u16 i8259_read_irr(struct pic_driver_t* pic_self)
     return ((u16)pic_self->pio_utils.readb(PIC1_DATA_PORT)) | ((u16)pic_self->pio_utils.readb(PIC2_DATA_PORT));
 }
 
-bool i8259_probe(struct generic_driver_t* driver)
+void i8259_probe(struct generic_driver_t* driver)
 {
     struct pic_driver_t* pic_self = (struct pic_driver_t*)driver;
     i8259_disable(driver);
     i8259_set_mask(pic_self, 0x1337);
-    return i8259_get_mask(pic_self) == 0x1337;
+    if (i8259_get_mask(pic_self) != 0x1337)
+    {
+        driver_log_state(driver, DRIVER_LOG_ERROR, "0x1337 check failed");
+        return;
+    }
 }
 
 struct pic_driver_t i8259_driver = {
@@ -102,7 +106,8 @@ struct pic_driver_t i8259_driver = {
         .name = "8259 PIC",
         .probe = &i8259_probe,
         .config = &i8259_config,
-        .disable = &i8259_disable
+        .disable = &i8259_disable,
+        .state = DRIVER_STATE_UNPROBED
     },
     .mask = &i8259_mask,
     .unmask = &i8259_unmask,

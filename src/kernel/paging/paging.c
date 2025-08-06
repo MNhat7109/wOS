@@ -1,7 +1,12 @@
 #include "paging.h"
+
+#include <stdbool.h>
 #include "../string/string.h"
+#include "../memory/memory.h"
+#include "../video/video.h"
 
 u32 kernel_page_dir;
+bool mmu_on=false;
 
 void paging_init(boot_info_t* boot_inf)
 {
@@ -18,10 +23,18 @@ void paging_init(boot_info_t* boot_inf)
     for (u32 i=0;i<mem_size;i+=0x1000)
         page_manager_map_memory(i, i);
 
-    page_alloc_lockn(boot_inf->framebuffer->base, page_convert_from_bytes(boot_inf->framebuffer->size));
-    for (u32 i=boot_inf->framebuffer->base; i<boot_inf->framebuffer->base+boot_inf->framebuffer->size;i+=0x1000)
+    framebuffer_t* fb_ptr = (framebuffer_t*)boot_inf->framebuffer;
+    page_alloc_lockn(fb_ptr->base, page_convert_from_bytes(fb_ptr->size));
+    for (u32 i=fb_ptr->base; i<fb_ptr->base+fb_ptr->size;i+=0x1000)
         page_manager_map_memory(i,i);
 
     paging_load(kernel_page_dir);
     paging_enable();
+
+    mmu_on=true;
+}
+
+bool paging_is_mmu_on()
+{
+    return mmu_on;
 }

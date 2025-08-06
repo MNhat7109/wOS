@@ -3,7 +3,13 @@
 #include "../../stdio.h"
 #include "../../x86/x86.h"
 
-isr_handler_t isr_handler_table[256];
+typedef struct
+{
+    isr_handler_t handler;
+    void* ctx;
+} isr_handle_wrapper_t;
+
+isr_handle_wrapper_t isr_handler_table[256];
 
 static const char* const exceptions[] = {
     "Divide by zero error",
@@ -51,11 +57,13 @@ void ISR_init()
     }
 }
 
-void __attribute__((cdecl)) ISR_handler(registers_t* regs)
+void __attribute__((cdecl)) ISR_handler(registers_t* regs, void* ctx)
 {
+    (void)ctx; // In this common handler, we won't use the context.
+    // But if so, it'll be NULL anyway.
     // There's a handler for this interrupt, use it.
-    if (isr_handler_table[regs->vector])
-        isr_handler_table[regs->vector](regs);
+    if (isr_handler_table[regs->vector].handler)
+        isr_handler_table[regs->vector].handler(regs, isr_handler_table[regs->vector].ctx);
     else if (regs->vector >= 32)
         kprintf("Interrupt %u unhandled!\n", regs->vector);
     else
@@ -73,8 +81,9 @@ void __attribute__((cdecl)) ISR_handler(registers_t* regs)
     }
 }
 
-void ISR_reg_handler(u8 vector, isr_handler_t handler)
+void ISR_reg_handler(u8 vector, isr_handler_t handler, void* ctx)
 {
-    isr_handler_table[vector] = handler;
+    isr_handler_table[vector].handler = handler;
+    isr_handler_table[vector].ctx = ctx;
     IDT_set_entry(vector);
 }

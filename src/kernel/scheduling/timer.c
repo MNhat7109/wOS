@@ -1,39 +1,59 @@
 #include "timer.h"
-#include "../hal/cpu/lapic.h"
-#include "../hal/interrupt/isr.h"
-#include "../ktime/ktime.h"
+#include "timer_lapic.h"
+#include "timer_pit.h"
+
+#include <stdbool.h>
+#include "../stdio.h"
 
 #define TIMER_INT_VECTOR 0x20
+#define DEFAULT_MS_PER_TICK 1
 
-u64 timer_recalibrate()
+static struct
 {
-    LAPIC_timer_init(false, 0x0, 0xFFFFFFFF, LAPIC_TIMER_MODE_ONE_SHOT, LAPIC_TIMER_DIVIDE_16);
-    
-    u64 start = ktime_read_counter();
-    sleep(10); // Sleeps in ms
-    u64 end = ktime_read_counter();
+    bool has_cpu, has_pit;
+    bool is_running;
+    scheduling_call cb_fp;
+} timer;
 
-    u32 lapic_current = LAPIC_read(LAPIC_REG_CURRCNT);
-    u32 lapic_elapsed = 0xFFFFFFFF - lapic_current;
-    u64 ktime_elapsed = end-start;
-
-    u64 elapsed_ns = (ktime_elapsed*1000000000ULL)/ktime_get_freq();
-
-    u64 lapic_freq = (lapic_elapsed*1000000000ULL)/elapsed_ns;
-    return lapic_freq;
-}
-
-void timer_handler(registers_t* regs)
+void timer_set_callback(scheduling_call callback)
 {
-    // TODO: Do fancy stuffs for multitasking
-    LAPIC_send_eoi();
+    timer.cb_fp = callback;
 }
 
 void timer_init()
 {
-    u32 freq = timer_recalibrate();
-    u32 tick_cnt = freq / 100;
+    timer.is_running = false;
+    timer.cb_fp = NULL;
+    timer.has_cpu = timer_set_up_lapic(timer.cb_fp, DEFAULT_MS_PER_TICK);
+    if (timer.has_cpu)
+    {
+        kprintf("Scheduler: LAPIC will be used as a timer\n");
+        timer.has_pit = false;
+        // No driver_unload PIT here
+        // What if LAPIC runs based off of ktime's PIT? (No HPET situation)
+    }
+    else
+    {
+        kprintf("Scheduler: LAPIC failed, will use PIT instead...\n");
+        timer.has_pit = timer_set_up_pit(timer.cb_fp, DEFAULT_MS_PER_TICK);
+        if (timer.has_pit) kprintf("Scheduler: PIT will be used as a timer\n");
+    }
 
-    LAPIC_timer_init(true, TIMER_INT_VECTOR, tick_cnt, LAPIC_TIMER_MODE_PERIODIC, LAPIC_TIMER_DIVIDE_16);
-    ISR_reg_handler(TIMER_INT_VECTOR, timer_handler);
+    if (!timer.has_cpu && !timer.has_pit)
+    {
+        kprintf("Scheduler: Timer init() failed.\n");
+        return;
+    }
+
+    timer.is_running = true;
+}
+
+bool timer_is_running()
+{
+    return timer.is_running;
+}
+
+void timer_sleep(u64 ms)
+{
+    if (timer.has_pit) timer_pit_sleep(ms);
 }

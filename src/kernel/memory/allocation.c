@@ -442,12 +442,14 @@ void memory_destroy_alloc()
     u32 pos = (u32)alloc_pack;
     for (int i=0;i<page_count;i++)
     {
-        bool stat = page_manager_unmap_memory(pos);
-        if (!stat)
+        u32 phys_base = page_manager_unmap_memory(pos);
+        if (!phys_base)
         {
             kprintf("Unmapping failed at address 0x%x\n", pos);
             return;
         }
+
+        page_alloc_free(phys_base);
         pos+=0x1000;
     }
     // page_alloc_freen((u32)alloc_pack, page_count);

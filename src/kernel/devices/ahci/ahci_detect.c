@@ -1,23 +1,40 @@
-#include "ahci.h"
-#include "ahci_hba.h"
 #include "ahci_detect.h"
+#include "ahci_shared.h"
+#include "ahci_defs.h"
+#include "ahci_hw.h"
 
 #include "../../stdio.h"
-#include "../../pci/pci.h"
+#include "../pci/pci.h"
 #include "../../string/string.h"
 #include "../../paging/paging.h"
+
 
 #define AHCI_SIG_ATA   0x00000101
 #define AHCI_SIG_ATAPI 0xEB140101
 #define AHCI_SIG_SEMB  0xC33C0101
 #define AHCI_SIG_PM    0x96690101
 
+extern struct ahci_shared_t ahci_shared;
+
 static struct
 {
-    hba_memory_t* abar;
-    u32 bar5;
-    u8 irq;
-} ahci_detect;
+    ahci_controller_t current_ctl;
+} ahci_ctl_data;
+
+static bool ahci_pci_detect(struct pci_driver_t* self);
+
+bool ahci_detect_controllers()
+{
+    ahci_shared.ctl_count = 0;
+
+    // This function scans in a loop, so all our needed information will be filled
+    // This only fails if there's no controllers to begin with
+    if (!ahci_shared.pci_dev->scan(ahci_shared.pci_dev, ahci_pci_detect))
+        return false;
+    
+    // At this point, the base will be all after the controller elements
+    return true;
+}
 
 void ahci_probe_features(hba_memory_t* abar)
 {
@@ -89,50 +106,73 @@ void ahci_probe_features(hba_memory_t* abar)
         , (const char*[]){"no", "yes"}[(cap_x>>5)&1]);
 }
 
-bool ahci_pci_detect(pci_dev_t* dev)
+/*-- STATIC FUNCTIONS --*/
+
+static bool ahci_pci_detect(struct pci_driver_t* self)
 {
-    if (dev->type.class != 0x01 || dev->type.sub != 0x06 || dev->prog_if != 1)
+    struct generic_driver_t* driver = (struct generic_driver_t*)self;
+
+    driver_log_state(driver, DRIVER_LOG_NOTICE, "Searching for AHCI controller...");
+
+    // Get Class, Subclass and Prog IF
+    u32 pci_offset8 = self->read(self, 0x08);
+    u8 class = pci_offset8 >> 24;
+    u8 sub = pci_offset8 >> 16;
+    u8 prog_if = pci_offset8 >> 8;
+
+    if (class != 0x01 || sub != 0x06 || prog_if != 1)
     {
         // It's not an AHCI controller
-        //kprintf("AHCI: controller not found\n");
+        driver_log_state(driver, DRIVER_LOG_WARN, "Skipping device: Not an eligible AHCI controller");
         return false;
     }
+
+    // Enable Memory Access, Bus Mastering
+    u16 curr_cmd = (u16)(self->read(self, 0x04) & 0xFFFF);
+    curr_cmd |= (1<<1); // Memory Space Response
+    curr_cmd |= (1<<2); // DMA Bus Mastering
+
+    // Get BAR5
+    u32 bar5 = self->read(self, 0x24);
+
+    // Interrupt number handling
+
+    // TODO: Optionally check for MSI/MSI-X support, but we'll skip this for now
+    u8 int_line = (u8)(self->read(self, 0x3C) & 0xFF);
+    ahci_ctl_data.current_ctl.interrupt_num = int_line;
+    curr_cmd &= ~(1<<10); // Clear the Interrupt Disable bit
     
-    if (!dev->mmio_phys_addr) 
+    // Write everything back
+    ahci_ctl_data.current_ctl.abar = (hba_memory_t*)(bar5 & ~0xF);
+    self->write(self, 0x04, curr_cmd);
+
+    driver_log_state(driver, DRIVER_LOG_NOTICE, "Found AHCI controller with specs below:");
+    kprintf("%x:%x.%x, class id=0x%x, subclass id=0x%x. ABAR=0x%x, IRQ: %hhu\n", 
+        self->bus, self->dev, self->func, class, sub, 
+        ahci_ctl_data.current_ctl.abar, 
+        ahci_ctl_data.current_ctl.interrupt_num);
+
+    // Bound check
+    if (ahci_shared.ctl_count >= AHCI_CONFIG_MAX_CTL)
     {
-        u16 abar_lo = PCI_config_read_word(dev->bus, dev->slot, dev->func, 0x24);
-        u16 abar_hi = PCI_config_read_word(dev->bus, dev->slot, dev->func, 0x24+2);
-        ahci_detect.bar5 = (u32)(abar_lo | (abar_hi << 16));
-        ahci_detect.irq = PCI_config_read_word(dev->bus, dev->slot, dev->func, 0x3C);
-        // TODO
+        driver_log_state(driver, DRIVER_LOG_WARN, "Client max controller count exceeded. Skipping...");
+        return false;
+        // Returning false to signal the PCI driver to skip the other mess
     }
-    else
-    {    
-        pci_hdr0_t* hdr_mem_space = (pci_hdr0_t*)dev->mmio_phys_addr;
-        ahci_detect.bar5 = (hdr_mem_space->bar5 & ~0xF); // BAR5
-        ahci_detect.irq = hdr_mem_space->interrupt_line;
 
-        hdr_mem_space->hdr.command |= (1<<1); // Enable Memory Space access 
-        hdr_mem_space->hdr.command |= (1<<2); // Enable Bus Mastering 
-        hdr_mem_space->hdr.command &= ~(1<<10); // Enable Interrupts
-    }    
-    kprintf("AHCI: found controller with class id=0x%x, subclass id=0x%x. ABAR=0x%x, IRQ: %hhu\n", 
-        dev->type.class, dev->type.sub, ahci_detect.bar5, ahci_detect.irq);
+    // Copy everything from the current_ctl to our container
 
-    u32 abar_virt = page_alloc_request();
-    page_manager_map_memory(abar_virt, ahci_detect.bar5);
-    ahci_detect.abar = (hba_memory_t*)abar_virt;
-    return true;
-}
-
-bool ahci_probe(struct generic_driver_t* driver)
-{
-    struct ahci_driver_t* ahci_self = (struct ahci_driver_t*)driver;
-    bool pci_status = PCI_scan(ahci_pci_detect);
-    if (!pci_status) return false;
-
-    ahci_self->__abar = ahci_detect.abar;
-    ahci_self->__irq = ahci_detect.irq;
-    ahci_self->__bar5 = ahci_detect.bar5;
+    // Save the needed fields
+    // We need to explicitly copy every field to the pointer, not referencing
+    // As the current_ctl can change every time the pci_scan is called with this callback
+    ahci_controller_t* ctl_ptr = &ahci_shared.controllers[ahci_shared.ctl_count];
+    ctl_ptr->abar = ahci_ctl_data.current_ctl.abar;
+    ctl_ptr->interrupt_num = ahci_ctl_data.current_ctl.interrupt_num;
+    ctl_ptr->device_count = 0; // Just in case
+    
+    // Map ABAR memory
+    for (u32 i=0;i<AHCI_CONFIG_MAX_ABAR_PAGE;i++)
+        page_manager_map_memory((u32)ctl_ptr->abar+i*PAGE_SIZE, (u32)ctl_ptr->abar+i*PAGE_SIZE);
+    ahci_shared.ctl_count++;
     return true;
 }

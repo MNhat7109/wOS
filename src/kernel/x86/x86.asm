@@ -294,3 +294,52 @@ _x86_wrmsr:
     mov esp, ebp
     pop ebp
     ret
+
+global _x86_cpu_check
+_x86_cpu_check:
+    push ebp
+    mov ebp, esp
+    push esi
+    push ebx
+    
+    mov esi, [ebp+8]
+
+    pushfd
+    pop eax
+    mov ecx, eax
+    xor eax, (1<<21)
+    push eax
+    popfd
+
+    pushfd
+    pop eax
+    xor eax, ecx
+    push ecx
+    popfd
+
+    shr eax, 21
+    and eax, 1
+    mov [esi], al ; CPUID flag saved in bool param
+
+    mov esi, [ebp+12]
+
+    test al, al
+    jz .skip_msr
+
+    mov eax, 1
+    cpuid
+    bt edx, 5
+    setc al
+    mov [esi], al
+    jmp .end
+
+.skip_msr:
+    xor al, al
+    mov [esi], al
+
+.end:
+    pop ebx
+    pop esi
+    mov esp, ebp
+    pop ebp
+    ret

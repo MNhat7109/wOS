@@ -3,22 +3,15 @@
 #include "interrupt/idt.h"
 #include "interrupt/isr.h"
 #include "interrupt/irq.h"
-#include "cpu/apic.h"
-#include "../stdio.h"
 
-void HAL_init()
+void HAL_init_boot()
 {
     GDT_init();
     IDT_init();
     ISR_init();
 }
 
-void HAL_init_stage2()
+void HAL_init_essentials()
 {
-    if (!APIC_init())
-    {
-        kprintf("HAL: Cannot set up APIC. No interrupts will be raised as a result.\n");
-        return;
-    }
     IRQ_init();
 }

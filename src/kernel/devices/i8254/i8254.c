@@ -22,7 +22,7 @@ u16 i8254_read_back(struct pit_driver_t* pit)
     return current_count;
 }
 
-bool i8254_probe(struct generic_driver_t* driver)
+void i8254_probe(struct generic_driver_t* driver)
 {
     struct pit_driver_t* pit = (struct pit_driver_t*)driver;
     u16 old_counter = i8254_read_back(pit);
@@ -31,15 +31,15 @@ bool i8254_probe(struct generic_driver_t* driver)
     while (delay--);
 
     u16 new_counter = i8254_read_back(pit);
-    return new_counter < old_counter;
+    if (new_counter == old_counter)
+    {
+        driver_log_state(driver, DRIVER_LOG_ERROR, "Timer not found or corrupted");
+        return;
+    }
 }
 
 void i8254_disable(struct generic_driver_t* driver)
 {
-    struct pit_driver_t* pit = (struct pit_driver_t*)driver;
-    pit->pio_utils.writeb(PIT_CMD_PORT, 0b00011010);
-    pit->reload_value = 1;
-    i8254_config(driver);
 }
 
 struct pit_driver_t i8254_driver = {
@@ -47,7 +47,8 @@ struct pit_driver_t i8254_driver = {
         .name="i8254 PIT", 
         .config=&i8254_config,
         .disable=&i8254_disable,
-        .probe=&i8254_probe
+        .probe=&i8254_probe,
+        .state = DRIVER_STATE_UNPROBED
     },
     .read_counter = &i8254_read_back,
     .reload_value = 0

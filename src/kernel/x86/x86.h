@@ -12,6 +12,7 @@ void __attribute__((cdecl)) _x86_disable_interrupt();
 u64 __attribute__((cdecl)) _x86_get_cpuid(u32 eax);
 u64 __attribute__((cdecl)) _x86_rdmsr(u32 ecx);
 void __attribute__((cdecl)) _x86_wrmsr(u32 ecx, u64 msr);
+void __attribute__((cdecl)) _x86_cpu_check(u8*, u8*);
 void __attribute__((cdecl)) crash();
 
 void __attribute__((cdecl)) _x86_outb(u16 port, u8 value);

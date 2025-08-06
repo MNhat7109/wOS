@@ -1,5 +1,4 @@
 #include "page_table_manager.h"
-#include "page_allocator.h"
 #include "../string/string.h"
 #include "paging.h"
 
@@ -63,27 +62,30 @@ void page_manager_map_memory(u32 virtual_address, u32 physical_address)
     paging_tlb_flush(virtual_address);
 }
 
-bool page_manager_unmap_memory(u32 virtual_address)
+// NOTE: Fixed the unmapping function.
+// Prior to fixing, this thing just emits a rotten smell of bugs there.
+// It unmaps a page, then free that page, too.
+// What if the unmapped page isn't allocated?
+u32 page_manager_unmap_memory(u32 virtual_address)
 {
     u32 page_index = (virtual_address >> 12) & 0x3FF; 
     u32 page_table_index = (virtual_address >> 22) & 0x3FF; 
 
     u32 page_dir_entry = page_directory[page_table_index];
     u8 present = page_manager_get_flag(page_dir_entry, PAGE_TABLE_FLAG_PRESENT);
-    if (!present) return false;
+    if (!present) return 0;
 
     u32* page_table = (u32*)(page_dir_entry & 0xFFFFF000);
     u32 page_entry = page_table[page_index];
     
     present = page_manager_get_flag(page_entry, PAGE_TABLE_FLAG_PRESENT);
-    if (!present) return false;
+    if (!present) return 0;
 
     page_manager_clear_flag(&page_entry, PAGE_TABLE_FLAG_PRESENT);
     u32 physical_address = page_entry & 0xFFFFF000;
-    page_alloc_free(physical_address);
 
     page_table[page_index] = 0;
 
     paging_tlb_flush(virtual_address);
-    return true;
+    return physical_address; // Returns the address for further freeing.
 }

@@ -1,5 +1,5 @@
 #pragma once
 #include "../stdint.h"
 
-void HAL_init();
-void HAL_init_stage2();
+void HAL_init_boot();
+void HAL_init_essentials();

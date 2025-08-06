@@ -2,23 +2,20 @@
 #include "../../stdint.h"
 #include <stdbool.h>
 #include "../driver.h"
-#include "../mmio.h"
-#include "ahci_ports.h"
 
-struct hba_memory_t;
-typedef struct hba_memory_t hba_memory_t;
+struct ahci_controller_t;
+typedef struct ahci_controller_t ahci_controller_t;
+
+struct ahci_dev_t;
+typedef struct ahci_dev_t ahci_dev_t;
+
+typedef void (*ahci_export_cb_t)(ahci_controller_t* ctl, u32 ctl_count);
 
 struct ahci_driver_t
 {
     struct generic_driver_t driver_hdr;
-    hba_memory_t* __abar;
-    u8 __irq;
-    u32 __bar5;
-    ahci_ports_t ports;
-    int (*read)(struct ahci_driver_t*, ahci_device_entry_t*
-        , u64, u16, void*);
-    int (*write)(struct ahci_driver_t*, ahci_device_entry_t*
-        , u64, u16, void*);
+    void (*export_dev)(struct generic_driver_t*, ahci_export_cb_t);
+    bool (*ioctl)(struct generic_driver_t*, ahci_dev_t*, int, void*);
 } __attribute__((packed));
 
 const struct generic_driver_t* ahci_get_driver();

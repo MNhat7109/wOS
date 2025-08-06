@@ -293,9 +293,11 @@ isr_common:
     mov fs, ax
     mov gs, ax
 
+; Push right to left: context first, then our saved regs
+    push 0
     push esp
     call ISR_handler
-    add esp,4
+    add esp,8
 
     pop eax
     mov ds, ax
@@ -304,5 +306,4 @@ isr_common:
     mov gs, ax
 
     popa
-    add esp, 8
     iret

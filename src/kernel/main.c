@@ -1,34 +1,18 @@
-#include "stdint.h"
-#include "stdio.h"
-#include "boot.h"
-#include "peripherals.h"
-#include "hal/hal.h"
-#include "disk/disk.h"
-#include "time.h"
-#include "ktime/ktime.h"
-#include "scheduling/scheduling.h"
+#include <arch/x86/utils/boot.h>
+#include <arch/x86/utils/kernel/kernel.h>
 
-void __attribute__((section(".entry"))) start(boot_info_t* boot_inf)
+void kstart(boot_info_t* boot_inf)
 {
-    if (!boot_prepare(boot_inf))
-    {
-        goto end;
-    }
+    // First steps
+    kernel_prepare(boot_inf);
 
-    boot_prepare_acpi();
+    // Init hardware interrupts
 
-    peripherals_init();
+    // Init ktime
 
-    HAL_init_essentials();
-    
-    // Set up timer for sleep()
-    ktime_init();
-    
-    // Set up storage
-    disk_init();
-    
-    // Set up scheduling for multitasking
-    // scheduling_init();
+    // Disk setup
+
+    // Scheduling setup
     
 end:    for (;;);
 }

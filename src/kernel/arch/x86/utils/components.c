@@ -197,11 +197,11 @@ void kernel_prepare_drivers()
     driver_load_ops(kernel_data.cpu_driver_node, cpu_get_driver_ops);
 }
 
-acpi_param_t acpi_parms;
 void kernel_prepare_root_dev(boot_info_t* info)
 {
     // ACPI
-
+    
+    acpi_param_t acpi_parms;
     acpi_parms.sys_desc_ptr = info->sdp;
     kernel_data.acpi_driver_node->additionals = (void*)&acpi_parms;
     if (!driver_run(kernel_data.acpi_driver_node))

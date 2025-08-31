@@ -7,7 +7,7 @@
 typedef struct acpi_param_t
 {
     void* sys_desc_ptr;
-    usize _reserved[3];
+    usize _reserved[4];
 } acpi_param_t;
 
 typedef struct system_desc_ptr_t

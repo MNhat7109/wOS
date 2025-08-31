@@ -19,13 +19,21 @@
 #include <devices/acpi/acpi.h>
 #include <devices/cpu/cpu.h>
 
+static struct
+{
+    gdt_entry_t kernel_gdt[6];
+    idt_entry_t kernel_idt[256];
+    struct generic_driver_tree_node_t* acpi_driver_node,
+    *cpu_driver_node, *pci_driver_node;
+} kernel_data;
+
 gdt_entry_t kernel_gdt[6];
 idt_entry_t kernel_idt[256];
 struct generic_driver_tree_node_t* acpi_driver_node=NULL;
 
 void kernel_prepare_gdt()
 {
-    x86_GDT_init(&kernel_gdt);
+    x86_GDT_init(&kernel_data.kernel_gdt);
 
     // Create the entries themselves
     // We start at the second entry, as the first one has been a
@@ -80,14 +88,14 @@ void kernel_prepare_gdt()
 
     // Finally, let the CPU sip that thing up
     // And reload the segments
-    x86_GDT_load_entries(sizeof(kernel_gdt),KERNEL_CODE_SEG, KERNEL_DATA_SEG);
+    x86_GDT_load_entries(sizeof(kernel_data.kernel_gdt),KERNEL_CODE_SEG, KERNEL_DATA_SEG);
 }
 
 void kernel_prepare_interrupts()
 {
     // IDT setup
-    x86_IDT_init(&kernel_idt);
-    x86_IDT_load_entries(sizeof(kernel_idt));
+    x86_IDT_init(&kernel_data.kernel_idt);
+    x86_IDT_load_entries(sizeof(kernel_data.kernel_idt));
 
     // ISR
     ISR_init();
@@ -163,7 +171,7 @@ void kernel_prepare_mmu(boot_info_t* info)
 void kernel_prepare_drivers()
 {
     // ACPI
-    acpi_driver_node
+    kernel_data.acpi_driver_node
     = driver_add_to_tree(&
         driver_forest,
         NULL,
@@ -172,11 +180,11 @@ void kernel_prepare_drivers()
         100,
         DRIVER_MODE_KRNL
     );
-    driver_set_id_data(acpi_driver_node, "GENERIC_ACPI_ROOT_DEV");
-    driver_load_ops(acpi_driver_node, acpi_get_driver_ops);
+    driver_set_id_data(kernel_data.acpi_driver_node, "GENERIC_ACPI_ROOT_DEV");
+    driver_load_ops(kernel_data.acpi_driver_node, acpi_get_driver_ops);
     
     // CPU
-    struct generic_driver_tree_node_t* cpu_driver_node
+    kernel_data.cpu_driver_node
     = driver_add_to_tree(
         &driver_forest,
         NULL,
@@ -185,21 +193,36 @@ void kernel_prepare_drivers()
         100,
         DRIVER_MODE_KRNL
     );
-    driver_set_id_data(cpu_driver_node, "GENERIC_CPU_ROOT_DEV");
-    driver_load_ops(cpu_driver_node, cpu_get_driver_ops);
+    driver_set_id_data(kernel_data.cpu_driver_node, "GENERIC_CPU_ROOT_DEV");
+    driver_load_ops(kernel_data.cpu_driver_node, cpu_get_driver_ops);
 }
 
 acpi_param_t acpi_parms;
-void kernel_prepare_acpi(boot_info_t* info)
+void kernel_prepare_root_dev(boot_info_t* info)
 {
+    // ACPI
+
     acpi_parms.sys_desc_ptr = info->sdp;
-    acpi_driver_node->additionals = (void*)&acpi_parms;
-    if (!driver_run(acpi_driver_node))
+    kernel_data.acpi_driver_node->additionals = (void*)&acpi_parms;
+    if (!driver_run(kernel_data.acpi_driver_node))
     {
         kprintf("Kernel: Failed to start ACPI driver\n");
         driver_remove_from_tree(
             &driver_forest,
-            acpi_driver_node
+            kernel_data.acpi_driver_node
         );
     }
+
+    // CPU
+
+    if (!driver_run(kernel_data.cpu_driver_node))
+    {
+        kprintf("Kernel: Failed to start CPU driver\n");
+        driver_remove_from_tree(
+            &driver_forest,
+            kernel_data.cpu_driver_node
+        );
+    }
+
+    // PCI
 }

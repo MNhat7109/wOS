@@ -34,4 +34,4 @@ void kernel_prepare_gdt();
 void kernel_prepare_interrupts();
 void kernel_prepare_mmu(boot_info_t* info);
 void kernel_prepare_drivers();
-void kernel_prepare_acpi(boot_info_t* info);
+void kernel_prepare_root_dev(boot_info_t* info);

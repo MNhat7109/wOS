@@ -16,22 +16,30 @@ ASMOBJS = $(patsubst $(SRC_DIR)/%.asm, $(BUILD_DIR)/asm/%.o, $(ASMSRCS))
 CSRCS = $(call rwildcard, $(SRC_DIR), *.c)
 COBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/c/%.o, $(CSRCS))
 
+CLIBS = $(wildcard $(SHARED_DIR), *.a)
+CLIB_DIRS = $(patsubst $(SHARED_DIR)/%.a, $(LIBSRC_DIR)/%, $(CLIBS))
+
 BIN = $(BUILD_DIR)/kernel.elf
 
 .PHONY: run
 
 run: link 
 
-link: $(ASMOBJS) $(COBJS)
+link: $(ASMOBJS) $(COBJS) $(CLIBS)
 	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Linking files...\n"
-	$(TARGET_CC) $(TARGET_LDFLAGS) -Wl,-Map=$(BUILD_DIR)/kernel.map -o $(BIN) $^ -lgcc
+	$(TARGET_CC) $(TARGET_LDFLAGS) -Wl,-Map=$(BUILD_DIR)/kernel.map -o $(BIN) $^ \
+	-lgcc
+
+$(SHARED_DIR)/%.a: $(LIBSRC_DIR)/%
+	mkdir -p $(@D)
+	$(MAKE) -C $^/
 
 $(BUILD_DIR)/asm/%.o: $(SRC_DIR)/%.asm
-	@printf "$(KERNEL_COLORSTART)[KERNE:]$(KERNEL_COLOREND): Compiling $^\n" 
+	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Assembling $^\n" 
 	mkdir -p $(@D)
 	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@
 
 $(BUILD_DIR)/c/%.o: $(SRC_DIR)/%.c
 	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Compiling $^\n"
 	mkdir -p $(@D)
-	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^ -I$(INC_DIR)

@@ -118,7 +118,7 @@ void kernel_prepare_mmu(boot_info_t* info)
     usize mem_map_page_cnt = mmu_byte_to_page_count(sizeof(memory_info_t)
     +sizeof(memory_region_t)*memmap->entries_count);
     page_alloc_lockn(info->mem_map, mem_map_page_cnt);
-    mmu_mmapn(info->mem_map, 0, mem_map_page_cnt, MMU_PT_FLAG_READ_WRITE);
+    mmu_mmapn((usize)info->mem_map, 0, mem_map_page_cnt, MMU_PT_FLAG_READ_WRITE);
 
     // The whole kernel (including the bss)
     usize offset = ((usize)&__start) - ((usize)&__low_start);
@@ -142,8 +142,8 @@ void kernel_prepare_mmu(boot_info_t* info)
     // The framebuffer
     framebuffer_t* fb_ptr = (framebuffer_t*)info->framebuffer;
     usize fb_page_count = mmu_byte_to_page_count(fb_ptr->size);
-    page_alloc_lockn(fb_ptr->base, fb_page_count);
-    mmu_mmapn(fb_ptr->base, 0, fb_page_count, 
+    page_alloc_lockn((void*)fb_ptr->base, fb_page_count);
+    mmu_mmapn((usize)fb_ptr->base, 0, fb_page_count, 
         MMU_PT_FLAG_READ_WRITE|MMU_PT_FLAG_CACHE_DISABLE);
 
     // The font glyph
@@ -151,14 +151,14 @@ void kernel_prepare_mmu(boot_info_t* info)
     u8 char_size = font_ptr->height*((font_ptr->width+7)>>3);
     usize glyph_page_count = mmu_byte_to_page_count(font_ptr->glyph_count*char_size);
     page_alloc_lockn(font_ptr->glyph, glyph_page_count);
-    mmu_mmapn(font_ptr->glyph, 0, glyph_page_count, MMU_PT_FLAG_NX);
+    mmu_mmapn((usize)font_ptr->glyph, 0, glyph_page_count, MMU_PT_FLAG_NX);
     
     // The bitmap allocator buffer
     bitmap_t* page_alloc_bmp = page_get_bitmap();
     usize bmp_size_in_bytes = page_alloc_bmp->size;
     usize bmp_page_count = mmu_byte_to_page_count(bmp_size_in_bytes);
     page_alloc_lockn(page_alloc_bmp->buffer, bmp_page_count);
-    mmu_mmapn(page_alloc_bmp->buffer, 0, bmp_page_count, MMU_PT_FLAG_READ_WRITE);
+    mmu_mmapn((usize)page_alloc_bmp->buffer, 0, bmp_page_count, MMU_PT_FLAG_READ_WRITE);
 
     // Enable paging (2nd time, so that we can reinforce the new page mapping
     // and new features like PAE and NX)

@@ -410,7 +410,7 @@ static bool slab_alloc_init_slab(slab_chunk_t** slab, u16 size)
         }
 
         *slab = (slab_chunk_t*)new_slab_start;
-        slab_data.current_slab_address+=stride;
+        slab_data.current_slab_address=(u8*)slab_data.current_slab_address+stride;
     }
 
     // In this scenario, initializing a bitmap buffer
@@ -471,7 +471,7 @@ static void slab_alloc_remove(slab_chunk_t** head, slab_chunk_t** tail, slab_chu
 
 static void slab_alloc_pop(slab_chunk_t** head, slab_chunk_t** tail)
 {
-    if (!tail || !*tail) return NULL;
+    if (!tail || !*tail) return;
 
     slab_chunk_t* popped = *tail;
 

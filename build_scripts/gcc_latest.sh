@@ -14,7 +14,7 @@ tar -xvf $1/${LATEST_GCC_FILE} -C $2
 cd $2
 ./$LATEST_DIR/configure --target=$3 --prefix="$4" --disable-nls --disable-werror \
     --enable-languages=c,c++ --without-headers
-make -j8 all-gcc all-target-libgcc
+make -j$(nproc) all-gcc all-target-libgcc
 make install-gcc install-target-libgcc
 
 cd ..

@@ -90,7 +90,7 @@ void mmu_destroy_heap()
     usize free_count = heap_data.heap_page_count;
     for (usize i=0;i<free_count;i++)
     {
-        usize paddr = mmu_munmap((usize)(heap_data.heap_base+i*0x1000));
+        usize paddr = mmu_munmap((usize)((u8*)heap_data.heap_base+i*0x1000));
         if (!paddr)
         {
             // In some weird cases of unmapping non-existent pages, 
@@ -102,7 +102,7 @@ void mmu_destroy_heap()
         }
 
         // Otherwise, we got our needed physical address. just free it.
-        page_alloc_free(paddr);
+        page_alloc_free((void*)paddr);
     }
 
     kprintf("Heap: Heap is now deactivated.\n");
@@ -127,7 +127,6 @@ void* mmu_allocate(usize size)
     // exceeds the maximum pointer size allowed in the slab allocator.
 
     void* ptr = NULL;
-    bool slab, buddy;
     heap_block_attribute_t* hdr;
 
     if (size <= slab_alloc_get_max_ptr_size())

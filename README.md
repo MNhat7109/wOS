@@ -41,38 +41,47 @@ This OS:
 
 ## How To Run
 
-### Prerequisites:
+### Prerequisites
 
-- A laptop that runs Linux.
-- Latest build of [Git](https://git-scm.com/) (to fork this repo, of course).
-- Latest build of [QEMU](https://www.qemu.org/) (for emulation).
-- Latest build of [GMP](https://gmplib.org/), [MPFR](https://www.mpfr.org/) and [```texinfo```](https://www.gnu.org/software/texinfo/) (for toolchain building).
-- Latest build of Linux dev tools (e.g. [```build-essential```](https://wiki.debian.org/BuildEssential) for Debian-based, or [```base-devel```](https://wiki.archlinux.org/title/DeveloperWiki:Building_in_a_Clean_Chroot#base-devel_group) for Arch-based distros).
+- A laptop or desktop running Linux (recommended).
+- [Git](https://git-scm.com/) (to clone this repo).
+- [QEMU](https://www.qemu.org/) (for emulation).
+- [GMP](https://gmplib.org/), [MPFR](https://www.mpfr.org/) and [Texinfo](https://www.gnu.org/software/texinfo/) (for toolchain building).
+- [aria2](https://aria2.github.io/) (for faster downloads in setup scripts).
+- Standard Linux development tools:  
+  - Debian/Ubuntu: [```build-essential```](https://wiki.debian.org/BuildEssential)  
+  - Arch/Manjaro: [```base-devel```](https://wiki.archlinux.org/title/DeveloperWiki:Building_in_a_Clean_Chroot#base-devel_group)  
+  - Fedora/RHEL: [`@development-tools`](https://docs.fedoraproject.org/en-US/quick-docs/getting-started-with-development-tools/)
 
 > 💡 **Note:**  
 > If your laptop runs something other than Linux — don’t worry!  
-> - **Windows:** Install [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/) or MSYS2 — they give you a Linux-like dev environment.  
-> - **macOS:** Install [Xcode Command Line Tools](https://developer.apple.com/xcode/) and [Homebrew](https://brew.sh/) for extra tools (`gcc`, `make`, `qemu`).  
+> - **Windows:** Install [Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/) or [MSYS2](https://www.msys2.org/) — they give you a Linux-like dev environment.  
+> - **macOS:** Install [Xcode Command Line Tools](https://developer.apple.com/xcode/) and [Homebrew](https://brew.sh/) for extra tools (`gcc`, `make`, `qemu`, `aria2`).  
 
 ### Run
 
 **1. Install all of the needed packages mentioned above:**
 
-- If you're using Debian-based distros (e.g. Ubuntu, Debian, etc.), or MSYS2:
+- Debian/Ubuntu (and WSL/MSYS2):
 
 ```
 sudo apt update
-sudo apt install build-essential qemu gmp mpfr libmpfr-dev texinfo git
+sudo apt install build-essential qemu gmp libgmp-dev mpfr libmpfr-dev texinfo git aria2
 ```
 
-- For Arch-based distros (e.g. Arch Linux, Manjaro):
+- Arch/Manjaro:
 
 ```
 sudo pacman -Syu
-sudo pacman -S base-devel qemu gmp mpfr texinfo git
+sudo pacman -S base-devel qemu gmp mpfr texinfo git aria2
+```
+- Fedora/RHEL:
+
+```
+sudo dnf install @development-tools qemu gmp gmp-devel mpfr mpfr-devel texinfo git aria2
 ```
 
-- For Macs:
+- macOS (Homebrew):
 
 ```
 # Install Xcode Command Line Tools
@@ -82,7 +91,7 @@ xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Then install extra tools
-brew install gcc make qemu gmp mpfr texinfo git
+brew install gcc make qemu gmp mpfr texinfo git aria2
 ```
 
 **2. Fork and clone this GitHub repository:**
@@ -94,8 +103,10 @@ git clone https://github.com/MNhat7109/wOS.git
 **3. Run the initial setup:**
 
 ```
+cd wOS
 make setup
-make run -C build_scripts/
+make -C build_scripts/
+
 ```
 > **Note:** 
 > Remember to wait for the commands to complete!

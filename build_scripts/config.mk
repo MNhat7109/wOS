@@ -1,4 +1,4 @@
-export TARGET=i686-elf
+export TARGET?=i686-elf
 export OSNAME=wOS
 
 export ASM=nasm
@@ -15,7 +15,10 @@ export TARGET_ASMFLAGS=
 export TARGET_LD=$(TARGET)-$(LD)
 export TARGET_LDFLAGS=
 
-export SRC_DIR = src
-export BUILD_DIR = build
+export SRC_DIR = $(abspath src)
+export BUILD_DIR = $(abspath build)
 export BOOT_DIR = $(BUILD_DIR)/bootloader
 export KRNL_DIR = $(BUILD_DIR)/kernel
+export INC_DIR = $(SRC_DIR)/include
+export LIBSRC_DIR = $(SRC_DIR)/shared
+export SHARED_DIR = $(BUILD_DIR)/libs

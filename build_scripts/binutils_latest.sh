@@ -13,7 +13,7 @@ aria2c "${BASE_URL}${LATEST_BINUTILS_FILE}" -d $(realpath $1) -x 16 --auto-file-
 tar -xvf $1/${LATEST_BINUTILS_FILE} -C $2
 cd $2
 ./$BINUTILS_DIR/configure --target=$3 --prefix="$4" --with-sysroot --disable-nls --disable-werror
-make -C $2 -j8
+make -C $2 -j$(nproc)
 make -C $2 install
 
 cd ..

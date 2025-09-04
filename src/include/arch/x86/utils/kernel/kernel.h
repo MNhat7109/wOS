@@ -28,6 +28,8 @@ extern u8 __end;
 struct boot_info_t;
 typedef struct boot_info_t boot_info_t;
 
+extern struct generic_driver_tree_node_t* driver_forest;
+
 void kernel_prepare(boot_info_t* info);
 void kernel_prepare_gdt();
 void kernel_prepare_interrupts();

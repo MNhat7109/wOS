@@ -61,7 +61,7 @@ void ksnputs(stdio_ctx_t* ctx, const char* str)
 {
     while (*str)
     {
-        ksnputs(ctx, *str);
+        ksnputc(ctx, *str);
         str++;
     }
 }

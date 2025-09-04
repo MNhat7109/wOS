@@ -11,6 +11,12 @@ typedef struct
     usize base, entry_count, ptr_size;
 } __attribute__((packed)) acpi_sdt_list_info_t;
 
+static acpi_sdt_list_t* acpi_table_add_to_list(
+    struct generic_driver_tree_node_t* self,
+    acpi_sdt_list_t** head,
+    acpi_sdt_hdr_t* hdr
+);
+
 bool acpi_table_is_sane(acpi_sdt_hdr_t* hdr)
 {
     // If the header is NULL, reject.
@@ -44,7 +50,7 @@ struct generic_driver_tree_node_t* acpi_find_table(
         u64 table_base;
         memcpy(
             &table_base, 
-            list_info->base+i*list_info->ptr_size, 
+            (const void*)(list_info->base+i*list_info->ptr_size), 
             list_info->ptr_size
         );
 
@@ -84,7 +90,7 @@ struct generic_driver_tree_node_t* acpi_find_table(
 
         // Find child node with the cid
         table_drv_node = driver_get_by_id(
-            &driver_forest,
+            &self,
             cid
         );
 
@@ -93,8 +99,7 @@ struct generic_driver_tree_node_t* acpi_find_table(
             // If the driver's node does not exist,
             // create one
 
-            table_drv_node = driver_add_to_tree(
-                &driver_forest,
+            table_drv_node = driver_add_to_parent(
                 self,
                 DRIVER_ID_TYPE_INTERNAL,
                 DRIVER_BUS_TYPE_ACPI,
@@ -187,7 +192,7 @@ bool acpi_invalidate_table(
             "ACPI table list is empty. The table's driver node will be removed.\n");
         
         driver_remove_from_tree(
-            &driver_forest,
+            &self,
             table_drv_node
         );
     }

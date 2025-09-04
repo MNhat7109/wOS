@@ -2,6 +2,8 @@
 #include <arch/x86/common/gdt.h>
 #include <arch/x86/i386/common.h>
 
+#include <libk/stdio.h>
+
 struct gdt_descriptor_t
 {
     u16 size;
@@ -36,7 +38,7 @@ void x86_GDT_mark_present(u32 idx)
 
 void x86_GDT_init(void* gdt_base_addr)
 {
-    x86_GDT_set_entry_address(gdt_base_addr);
+    x86_GDT_set_table_address(gdt_base_addr);
     
     // In the OSDev Wiki for Global Descriptor Table
     // (See https://wiki.osdev.org/Global_Descriptor_Table)
@@ -52,7 +54,7 @@ void x86_GDT_init(void* gdt_base_addr)
 void x86_GDT_load_entries(usize table_size, u16 code, u16 data)
 {
     gdtr.size = table_size-1;
-    gdtr.offset = (u32)&gdt;
+    gdtr.offset = (u32)gdt;
 
     i386_GDT_load(&gdtr, code, data);
 }

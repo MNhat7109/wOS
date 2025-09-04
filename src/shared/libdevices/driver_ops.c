@@ -3,7 +3,7 @@
 #include <libk/stdio.h>
 #include <stdarg.h>
 
-static const char* stat_str[4] = {
+static const char* stat_str[] = {
     "failed",
     "ready to use",
     "probed",
@@ -101,10 +101,11 @@ bool driver_load_ops(
 {
     if (!callback) return false;
 
-    const struct generic_driver_ops_t* ops = callback();
+    struct generic_driver_ops_t* ops = callback();
     if (!ops) return false;
 
     driver->ops = ops;
+    return true;
 }
 
 //////////////////////////////////////////////////////////////////////

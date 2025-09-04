@@ -4,7 +4,8 @@ include build_scripts/config.mk
 .PHONY: clean run
 
 run: buildimg
-	qemu-system-i386 --trace "ahci.*" -d int \
+	qemu-system-i386 --trace "ahci.*" -d int,cpu_reset -no-reboot -no-shutdown \
+	-D $(BUILD_DIR)/qemu-debug.txt \
 	-machine q35 -M hpet=on \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \
@@ -27,11 +28,11 @@ $(BOOT_DIR)/$(OSNAME)_p1.img: $(BOOT_DIR)/stage1/stage1.bin $(BOOT_DIR)/stage2/s
 	dd if=$< of=$@ bs=512 count=1 conv=notrunc
 	dd if=$< of=$@ bs=512 count=2 seek=2 skip=1 conv=notrunc
 	dd if=$< of=$@ bs=512 seek=6 conv=notrunc
-	cp $(word 2, $^) $(SRC_DIR)/files/part1/boot.bin
-	cp $(word 3, $^) $(SRC_DIR)/files/part1/
+	cp $(word 2, $^) $(ROOT_DIR)/part1/boot.bin
+	cp $(word 3, $^) $(ROOT_DIR)/part1/
 	sudo mkdir -p /mnt/$(OSNAME)
 	sudo mount -t vfat -o loop $@ /mnt/$(OSNAME)
-	sudo cp -r $(SRC_DIR)/files/part1/** /mnt/$(OSNAME)
+	sudo cp -r $(ROOT_DIR)/part1/** /mnt/$(OSNAME)
 	sudo umount /mnt/$(OSNAME)
 	sudo rm -rf /mnt/$(OSNAME)/**
 	

@@ -7,22 +7,66 @@
 #include <libk/containers/queue.h>
 #include <libk/containers/stack.h>
 
-struct generic_driver_tree_node_t* driver_forest = NULL;
-
 #define MAX_DRIVERS_FOUND 128
 
-static struct generic_driver_tree_node_t* driver_add_node(
-    struct generic_driver_tree_node_t* parent, 
-    generic_driver_id_type_t id_type,
-    generic_driver_bus_type_t bus_type,
-    u8 requested_priority,
-    generic_driver_mode_t mode
+static u8 driver_clamp_priority(
+    generic_driver_mode_t mode,
+    u8 raw_priority
 );
 
 static u8 driver_request_priority(
     generic_driver_mode_t mode,
     generic_driver_bus_type_t bus_type
 );
+
+struct generic_driver_tree_node_t* driver_add_to_parent(
+    struct generic_driver_tree_node_t* parent, 
+    generic_driver_id_type_t id_type,
+    generic_driver_bus_type_t bus_type,
+    u8 requested_priority,
+    generic_driver_mode_t mode
+)
+{
+    // Create a new node
+    struct generic_driver_tree_node_t* new_node = 
+    kmalloc(sizeof(struct generic_driver_tree_node_t));
+    if (!new_node)
+        return NULL;
+
+    // Populate that thing
+    new_node->parent = parent;
+    new_node->bus_type = bus_type;
+    new_node->id_type = id_type;
+    ATOMIC_STORE(new_node->refcount, 1);
+    new_node->next_peer = NULL;
+    new_node->first_child = NULL;
+    new_node->mode = mode;
+    new_node->state = DRIVER_STATE_UNPROBED;
+
+    // Always clamp the priority number first before doing anything
+    requested_priority = driver_clamp_priority(mode, requested_priority);
+
+    new_node->priority = 
+    requested_priority ? 
+    requested_priority :
+    driver_request_priority(mode, bus_type);
+
+    // If there's no parent, it's likely a root
+    if (parent)
+    {
+        if (!parent->first_child) parent->first_child = new_node;
+        else
+        {
+            struct generic_driver_tree_node_t* child_link = parent->first_child;
+            while (child_link->next_peer)
+                child_link = child_link->next_peer;
+
+            child_link->next_peer = new_node;
+        }
+    }
+
+    return new_node;
+}
 
 struct generic_driver_tree_node_t* driver_add_to_tree(
     struct generic_driver_tree_node_t** root, 
@@ -34,7 +78,7 @@ struct generic_driver_tree_node_t* driver_add_to_tree(
 )
 {
     struct generic_driver_tree_node_t* new_node = 
-    driver_add_node(parent, id_type, bus_type, mode, priority);
+    driver_add_to_parent(parent, id_type, bus_type, mode, priority);
     if (!new_node) return NULL;
 
     // Case 1: First root
@@ -130,55 +174,6 @@ void driver_remove_from_tree(
 /* STATIC FUNCTIONS */
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
-
-static struct generic_driver_tree_node_t* driver_add_node(
-    struct generic_driver_tree_node_t* parent, 
-    generic_driver_id_type_t id_type,
-    generic_driver_bus_type_t bus_type,
-    u8 requested_priority,
-    generic_driver_mode_t mode
-)
-{
-    // Create a new node
-    struct generic_driver_tree_node_t* new_node = 
-    kmalloc(sizeof(struct generic_driver_tree_node_t));
-    if (!new_node)
-        return NULL;
-
-    // Populate that thing
-    new_node->parent = parent;
-    new_node->bus_type = bus_type;
-    new_node->id_type = id_type;
-    ATOMIC_STORE(new_node->refcount, 1);
-    new_node->next_peer = NULL;
-    new_node->first_child = NULL;
-    new_node->mode = mode;
-    new_node->state = DRIVER_STATE_UNPROBED;
-
-    // Always clamp the priority number first before doing anything
-    requested_priority = driver_clamp_priority(mode, requested_priority);
-
-    new_node->priority = 
-    requested_priority ? 
-    requested_priority :
-    driver_assign_default_priority(mode, bus_type);
-
-    // If there's no parent, it's likely a root
-    if (parent)
-    {
-        if (!parent->first_child) parent->first_child = new_node;
-        else
-        {
-            struct generic_driver_tree_node_t* child_link = parent->first_child;
-            while (child_link->next_peer)
-                child_link = child_link->next_peer;
-
-            child_link->next_peer = new_node;
-        }
-    }
-
-    return new_node;
-}
 
 static u8 driver_request_priority(
     generic_driver_mode_t mode,

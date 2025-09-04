@@ -11,6 +11,9 @@ global _x86_outw
 global _x86_inw
 global _x86_outw
 
+global _x86_inl
+global _x86_outl
+
 _x86_inb:
     push ebp
     mov ebp, esp

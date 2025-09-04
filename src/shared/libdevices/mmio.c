@@ -40,8 +40,8 @@ void mmio_acquire(
 
 void mmio_release(struct mmio_info_t* self)
 {
-    usize page_count = mmu_byte_to_page_count(self->size);
-    mmu_munmapn(self->base, page_count);
+    u64 page_count = mmu_byte_to_page_count(self->size);
+    mmu_munmapn(self->base, &page_count);
 
     self->layer=NULL;
     self->base =0;

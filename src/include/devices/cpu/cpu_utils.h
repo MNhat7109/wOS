@@ -26,5 +26,6 @@ void cpu_config_new_features(
     struct generic_driver_tree_node_t* self
 );
 void cpu_config_table(
-    struct generic_driver_tree_node_t* self
+    struct generic_driver_tree_node_t* self,
+    struct generic_driver_tree_node_t* acpi_drv_node
 );

@@ -8,6 +8,7 @@ enum printf_STATES
     PRINTF_STATE_LENGTH,
     PRINTF_STATE_LENGTH_LONG,
     PRINTF_STATE_LENGTH_SHORT,
+    PRINTF_STATE_LENGTH_SIZE,
 };
 
 enum printf_STATES_LENGTH
@@ -16,6 +17,7 @@ enum printf_STATES_LENGTH
     PRINTF_LENGTH_SHORT_SHORT,
     PRINTF_LENGTH_LONG,
     PRINTF_LENGTH_LONG_LONG,
+    PRINTF_LENGTH_SIZE,
     PRINTF_LENGTH_NORMAL,
 };
 
@@ -31,17 +33,17 @@ void printf_unsigned(stdio_ctx_t* ctx, u64 number, int radix)
         number /= radix;
     } while (number > 0);
 
-    while (--i >= 0) ksnputc(&ctx, bufferOut[i]);
+    while (--i >= 0) ksnputc(ctx, bufferOut[i]);
 }
 
 void printf_signed(stdio_ctx_t* ctx, i64 number, int radix)
 {
     if (number < 0) 
     {
-        ksnputc(&ctx, '-');
-        printf_unsigned(&ctx, -number, radix);
+        ksnputc(ctx, '-');
+        printf_unsigned(ctx, -number, radix);
     }
-    else printf_unsigned(&ctx, number, radix);
+    else printf_unsigned(ctx, number, radix);
 }
 
 void kprintf(const char* fmt, ...)
@@ -100,6 +102,10 @@ void kvsnprintf(char* buf, usize n, const char* fmt, va_list arg)
                 current_state = PRINTF_STATE_LENGTH_LONG;
                 length = PRINTF_LENGTH_LONG;
                 break;
+            case 'z':
+                current_state = PRINTF_STATE_LENGTH_SIZE;
+                length = PRINTF_LENGTH_SIZE;
+                break;
             default:
                 fmt--;
                 current_state = PRINTF_STATE_SPEC;
@@ -131,6 +137,10 @@ void kvsnprintf(char* buf, usize n, const char* fmt, va_list arg)
                 current_state = PRINTF_STATE_SPEC;
                 break;
             }
+            break;
+        case PRINTF_STATE_LENGTH_SIZE:
+            fmt--;
+            current_state = PRINTF_STATE_SPEC;
             break;
         case PRINTF_STATE_SPEC:
             switch (*fmt)
@@ -170,18 +180,23 @@ void kvsnprintf(char* buf, usize n, const char* fmt, va_list arg)
                 case PRINTF_LENGTH_SHORT_SHORT:
                 case PRINTF_LENGTH_NORMAL:
                     if (sign) 
-                        printf_signed(&ctx, va_arg(arg,  isize), radix);
-                    else printf_unsigned(&ctx, va_arg(arg, usize), radix);
+                        printf_signed(&ctx, va_arg(arg, int), radix);
+                    else printf_unsigned(&ctx, va_arg(arg, int), radix);
                     break;
                 case PRINTF_LENGTH_LONG:
                     if (sign) 
-                        printf_signed(&ctx, va_arg(arg,  isize), radix);
-                    else printf_unsigned(&ctx, va_arg(arg, usize), radix);
+                        printf_signed(&ctx, va_arg(arg,  i32), radix);
+                    else printf_unsigned(&ctx, va_arg(arg, u32), radix);
                     break;
                 case PRINTF_LENGTH_LONG_LONG:
                     if (sign) 
                         printf_signed(&ctx, va_arg(arg,  i64), radix);
                     else printf_unsigned(&ctx, va_arg(arg, u64), radix);
+                    break;
+                case PRINTF_LENGTH_SIZE:
+                    if (sign) 
+                        printf_signed(&ctx, va_arg(arg,  isize), radix);
+                    else printf_unsigned(&ctx, va_arg(arg, usize), radix);
                     break;
                 }
             }

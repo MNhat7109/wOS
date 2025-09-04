@@ -1,4 +1,4 @@
-ENTRY(start)
+ENTRY(pre_paging_start)
 OUTPUT_FORMAT("elf32-i386")
 phys = 0x100000;
 

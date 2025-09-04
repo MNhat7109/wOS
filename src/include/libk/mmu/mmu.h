@@ -45,8 +45,7 @@ void mmu_init_map(memory_info_t* mem_info);
 memory_info_t* mmu_get_memory_map();
 void mmu_init_pages(void* addr, bool pae);
 
-void mmu_init(boot_info_t* info, void* buffer, bool use_pae);
-void mmu_enable();
+void mmu_enable_paging(void* addr, bool use_pae);
 bool mmu_get_status();
 
 void mmu_mmap(u64 vaddr, u64 paddr, u64 flags);

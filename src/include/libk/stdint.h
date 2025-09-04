@@ -13,9 +13,9 @@ typedef signed int      i32;
 typedef signed long long i64;
 
 #ifdef __x86_64__
-typedef unsigned long long usize;
-typedef signed long long isize;
-#else
 typedef unsigned long usize;
 typedef signed long isize;
+#else
+typedef unsigned int usize;
+typedef signed int isize;
 #endif

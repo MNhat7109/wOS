@@ -67,7 +67,7 @@ static void slab_alloc_remove(slab_chunk_t** head, slab_chunk_t** tail, slab_chu
 
 void slab_alloc_init(void* address, usize page_count)
 {
-    kprintf("Slab: Initializing at address 0x%x, max page threshold: %u\n", address, page_count);
+    kprintf("Slab: Initializing at address 0x%p, max page threshold: %u\n", address, page_count);
     slab_data.slab_address=address;
     slab_data.current_slab_address=address;
     

@@ -14,7 +14,7 @@ typedef struct x86_cpu_flags_t
 
 struct generic_driver_tree_node_t;
 struct cio_layer_t;
-typedef cio_layer_t cio_layer_t;
+typedef struct cio_layer_t cio_layer_t;
 struct x86_cpu_flags_t;
 typedef struct x86_cpu_flags_t x86_cpu_flags_t;
 

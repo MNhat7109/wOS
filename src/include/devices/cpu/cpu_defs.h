@@ -69,7 +69,6 @@ typedef struct madt_t
 
 typedef void (*table_callback_t)(
     struct generic_driver_tree_node_t* cpu_self,
-    struct generic_driver_tree_node_t* table_drv_node,
     void* record,
     void* ctx
 );

@@ -1,5 +1,7 @@
 #include <devices/driver.h>
 
+#include <libk/stdlib.h>
+
 #include <stdarg.h>
 
 static const char* res_type_str[] = {
@@ -137,7 +139,7 @@ void driver_set_res_data(
     {
         case DRIVER_RES_TYPE_DEPENDENCY:
             resource->resource.dependency = 
-            va_arg(args, struct generic_driver_resource_t*);
+            va_arg(args, struct generic_driver_tree_node_t*);
             driver_ref(resource->resource.dependency);
             break;
         case DRIVER_RES_TYPE_MMIO:

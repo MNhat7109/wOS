@@ -20,6 +20,7 @@ static void qsort(memory_region_t regions[], u32 lo, u32 hi);
 void mmu_init_map(memory_info_t* mem_info)
 {
     mem_map = mem_info;
+    mmu_merge_region();
 }
 
 void mmu_view_map()
@@ -106,7 +107,7 @@ void* mmu_search_memrange(
 )
 {
     // Identity map from paddr_start...paddr_start+(page_count-1)*PAGE_SIZE
-    usize page_count = mmu_byte_to_page_count(size);
+    u64 page_count = mmu_byte_to_page_count(size);
     mmu_mmapn(paddr_start, 0, page_count, 0); // Map as read only
     usize match_addr = 0;
 
@@ -120,12 +121,12 @@ void* mmu_search_memrange(
     }
 
     // Now unmap the search region, but map the matched address
-    mmu_munmapn(paddr_start, page_count);
+    mmu_munmapn(paddr_start, &page_count);
     if (match_addr)
     {
         // Align to page boundary to make sure
         usize page_base = match_addr & ~(MMU_PAGE_SIZE-1);
-        mmu_mmap(match_addr, match_addr, flags);
+        mmu_mmap(page_base, page_base, flags);
     }
 
     return match_addr? (void*)match_addr: NULL;

@@ -25,7 +25,7 @@ void* driver_alloc(
 {
     if (size == 0) return NULL;
 
-    driver_obj_hdr_t* obj;
+    driver_obj_hdr_t* obj = NULL;
     usize block_size = size+sizeof(driver_obj_hdr_t);
 
     switch (alloc_flags)
@@ -34,15 +34,17 @@ void* driver_alloc(
             obj = kmalloc(block_size);
             break;
         case DRIVER_ALLOC_FLAG_ID:
+        {
             usize block_page_count = mmu_byte_to_page_count(block_size);
             obj = page_alloc_request();
-            mmu_mmap(obj, obj, mmu_specific);
+            mmu_mmap((usize)obj, (usize)obj, mmu_specific);
             for (usize i=0;i<block_page_count-1;i++)
             {
                 void* addr = page_alloc_request();
-                mmu_mmap(addr, addr, mmu_specific);
+                mmu_mmap((usize)addr, (usize)addr, mmu_specific);
             }
             break;
+        }
         default:
             driver_log_state(driver, DRIVER_LOG_ERROR, "Unknown allocation flag\n");
             break;
@@ -79,10 +81,12 @@ void driver_free(
             kfree(hdr);
             break;
         case DRIVER_ALLOC_FLAG_ID:
-            usize block_page_count = mmu_byte_to_page_count(hdr->size);
-            usize base_start = mmu_munmapn(hdr, block_page_count);
+        {
+            u64 block_page_count = mmu_byte_to_page_count(hdr->size);
+            usize base_start = mmu_munmapn((usize)hdr, &block_page_count);
             page_alloc_freen((void*)base_start, block_page_count);
             break;
+        }
         default:
             driver_log_state(driver, DRIVER_LOG_ERROR, "Unknown allocation flag\n");
             break;

@@ -2,6 +2,7 @@
 #include "../disk/disk.h"
 #include "../fat/fat.h"
 #include "../string/string.h"
+#include "../stdio.h"
 
 #define ELF_MAG ("\x7f" "ELF")
 
@@ -120,7 +121,9 @@ bool ELF_load_file(const char* path, void** entry_point)
     {
         ELF_p_hdr_t* phdr = (ELF_p_hdr_t*)(elf_buffer+i*phdr_ent_size);
         if (phdr->type != PHDR_TYPE_LOAD) continue;
-        u8* addr = (u8*)phdr->virt_addr;
+        u8* addr = (u8*)phdr->phys_addr;
+
+        kprintf("ELF loader addr: 0x%x\n", addr);
         memset(addr, 0, phdr->size_in_mem);
         fp = FAT_open(path);
 

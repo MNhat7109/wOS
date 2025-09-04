@@ -40,7 +40,7 @@ struct acpi_driver_ops_t acpi_ops = {
 
 const struct generic_driver_ops_t* acpi_get_driver_ops()
 {
-    return &acpi_ops;
+    return (struct generic_driver_ops_t*)&acpi_ops;
 }
 
 //////////////////////////////////////////////////////////
@@ -136,10 +136,10 @@ static void acpi_disable(struct generic_driver_tree_node_t* self)
     acpi_reserved_param_t* save_info
     = (acpi_reserved_param_t*)param->_reserved;
 
-    usize page_count = mmu_byte_to_page_count(save_info->size);
+    u64 page_count = mmu_byte_to_page_count(save_info->size);
 
     // First, we need to unmap the pointer list.
-    mmu_munmapn(save_info->base, page_count);
+    mmu_munmapn(save_info->base, &page_count);
 
     // Then deallocate the parameters.
     driver_free(self, self->additionals);

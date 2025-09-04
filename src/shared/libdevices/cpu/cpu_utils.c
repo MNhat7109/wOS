@@ -10,8 +10,7 @@ struct generic_driver_tree_node_t* cpu_create_core_node(
     u32 index
 )
 {
-    struct generic_driver_tree_node_t* new_node = driver_add_to_tree(
-        &driver_forest,
+    struct generic_driver_tree_node_t* new_node = driver_add_to_parent(
         cpu_self, DRIVER_ID_TYPE_INTERNAL,
         DRIVER_BUS_TYPE_CPU,
         100,
@@ -20,7 +19,7 @@ struct generic_driver_tree_node_t* cpu_create_core_node(
     if (!new_node)
     {
         driver_log_state(cpu_self, DRIVER_LOG_ERROR, "Cannot init BSP core node\n");
-        return;
+        return NULL;
     }
 
     // Cook up CID
@@ -55,11 +54,10 @@ bool cpu_scan_madt(
     while (entry<entry_end)
     {
         madt_record_entry_hdr_t* rec_entry = (madt_record_entry_hdr_t*)entry;
-        u8 entry_type = rec_entry->entry_type;
         u8 len = rec_entry->record_length;
 
         if (len < 2 || entry+len>entry_end) break;
-        callback(cpu_self, madt_drv_node, (void*)rec_entry, ctx);
+        callback(cpu_self, (void*)rec_entry, ctx);
         entry+=len;
     }
 

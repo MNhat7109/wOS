@@ -43,11 +43,6 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset, memory_i
     interrupt_init();
     PIT_init(2000);
     kprintf("Hello from stage2!\n");
-    for (int i=0;i<memInfo->entries_count;i++)
-    {
-        kprintf("Base: 0x%llx, Length: 0x%llx, Type: %u\n", memInfo->regions[i].base
-        ,memInfo->regions[i].length, memInfo->regions[i].type);
-    }
     // Welp, I guess we can write a FAT32 filesystem driver now, eh?
     if (!FAT_init(0, offset))
     {
@@ -62,6 +57,14 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset, memory_i
     }
     
     VESA_init();
+    // HACK: Reserve low memory, no reason for the kernel to still use it
+    memInfo->regions[0].type = 2;
+    
+    for (int i=0;i<memInfo->entries_count;i++)
+    {
+        kprintf("Base: 0x%llx, Length: 0x%llx, Type: %u\n", memInfo->regions[i].base
+        ,memInfo->regions[i].length, memInfo->regions[i].type);
+    }
     kprintf("Loading the kernel...\n");
     kernel_func_t kernel_init;
     if (!ELF_load_file("/kernel.elf", (void**)&kernel_init))
@@ -82,6 +85,7 @@ void __attribute__((cdecl)) start(u16 bootDrive, void* partitionOffset, memory_i
     boot_info.mem_map = mmap;
     save_cursor();
     // PIC_disable();
+    kprintf("BOOT: 0x%x\n", &boot_info);
     kernel_init(&boot_info);
 end:    
     for (;;);

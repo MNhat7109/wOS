@@ -1,14 +1,19 @@
 STAGE2_COLORSTART = \e[31m
 STAGE2_COLOREND = \e[0m
 
-TARGET_ASMFLAGS += -f elf
-TARGET_CFLAGS += -Oz -Wall -Wextra -Wpedantic -ffreestanding -nostdlib -std=c99
-TARGET_LDFLAGS += -T linker.ld -nostdlib
-
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
 SRC_DIR = $(shell pwd)
 BUILD_DIR = $(shell echo $(subst src,build, $(SRC_DIR)) | sed 's/^[ ]*//')
+
+ifeq ($(TARGET), i686-elf)
+TARGET_ASMFLAGS += -f elf32
+else
+TARGET_ASMFLAGS += -f elf64
+endif
+
+TARGET_CFLAGS += -Oz -Wall -Wextra -Wpedantic -ffreestanding -nostdlib -std=c99
+TARGET_LDFLAGS += -T linker.ld -nostdlib
 
 ASMSRCS = $(call rwildcard, $(SRC_DIR), *.asm)
 ASMOBJS = $(patsubst $(SRC_DIR)/%.asm, $(BUILD_DIR)/asm/%.o, $(ASMSRCS))

@@ -71,7 +71,6 @@ typedef enum
     DRIVER_LOG_NOTICE,
 } log_state_t;
 
-extern struct generic_driver_tree_node_t* driver_forest;
 typedef const struct generic_driver_ops_t* (*driver_callback_t)();
 #define GET_DEV_OPS(type, node) \
     ((struct type##_driver_ops_t *)((node)->ops))
@@ -117,6 +116,14 @@ void* driver_alloc(
 );
 void driver_free(struct generic_driver_tree_node_t* driver, void* ptr);
 
+
+struct generic_driver_tree_node_t* driver_add_to_parent(
+    struct generic_driver_tree_node_t* parent, 
+    generic_driver_id_type_t id_type,
+    generic_driver_bus_type_t bus_type,
+    u8 requested_priority,
+    generic_driver_mode_t mode
+);
 struct generic_driver_tree_node_t* driver_add_to_tree(
     struct generic_driver_tree_node_t** root, 
     struct generic_driver_tree_node_t* parent, 

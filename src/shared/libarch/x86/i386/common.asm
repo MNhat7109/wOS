@@ -14,10 +14,11 @@ i386_GDT_load:
     mov eax, [ebp+8]
     lgdt [eax]
 
-    mov eax, [ebp+12]
+    xor eax,eax
+    mov ax, [ebp+12]
     mov bx, [ebp+16]
-    push eax
-    push .rel
+    push ax
+    push dword .rel
     retf
 .rel:
     mov ax, bx

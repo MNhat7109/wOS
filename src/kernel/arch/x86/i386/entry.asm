@@ -102,5 +102,5 @@ boot_info_ptr: dd 0
 section .stack align=16
 
 stack_bot:
-    resb 0x4000
+    resb 0x8000
 stack_top:

@@ -32,7 +32,7 @@ SECTIONS
     .stack ALIGN(16) (NOLOAD) :
     {
         __stack_start = .;
-        . += 0x4000;
+        . += 0x8000;
         __stack_end = .;
     }
     

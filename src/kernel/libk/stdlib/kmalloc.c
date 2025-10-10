@@ -8,11 +8,11 @@ void* kmalloc(usize size)
     return mmu_allocate(size);
 }
 
-void* kcalloc(usize size)
+void* kcalloc(usize n, usize size)
 {
-    void* ptr = mmu_allocate(size);
+    void* ptr = mmu_allocate(n*size);
     if (!ptr) return NULL;
-    memset(ptr, 0, size);
+    memset(ptr, 0, n*size);
     return ptr;
 }
 

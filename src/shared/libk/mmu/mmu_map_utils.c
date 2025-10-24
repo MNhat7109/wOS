@@ -197,16 +197,17 @@ memory_region_node_t* mmu_map_insert_region
         if (!parent)
         {
             new_node->other.color = NODE_COLOR_BLACK;
+            head = new_node;
         }
         else
         {
-            if (base > parent->base) parent->left = new_node;
+            if (base < parent->base) parent->left = new_node;
             else parent->right = new_node;
         }
     
         // Then, fix things that we may have violated after the insert
-        mmu_map_fix_insert(head);
+        mmu_map_fix_insert(&head, new_node);
     }
 
-    return new_node;
+    return head;
 }

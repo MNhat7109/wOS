@@ -58,6 +58,8 @@ memory_region_node_t* mmu_map_insert_region
     u32 acpi,
     mmu_region_criterion_t can_insert
 );
+void mmu_map_fix_insert(memory_region_node_t** head, memory_region_node_t* new_node);
+
 memory_region_node_t* mmu_map_delete_region
 (
     memory_region_node_t* head,
@@ -210,4 +212,45 @@ memory_region_node_t* mmu_map_insert_region
     }
 
     return head;
+}
+
+void mmu_map_fix_insert(memory_region_node_t** head, memory_region_node_t* new_node)
+{
+    // Fix violations if only the parent node is RED,
+    // because the newly inserted node is also RED, they violates the
+    // "RED node don't have BLACK children" rule.
+
+    memory_region_node_t* current = new_node;
+
+    while (current->parent != *head && current->parent->other.color == NODE_COLOR_RED)
+    {
+        // Obtain uncle node
+        memory_region_node_t* uncle;
+        if (current->parent->parent->left == current->parent)
+        uncle = current->parent->parent->right;
+        else uncle = current->parent->left;
+
+        // Case 1: Uncle is RED
+        if (uncle->other.color == NODE_COLOR_RED)
+        {
+            // Recolor both parent and uncle to black
+            current->parent->other.color = NODE_COLOR_BLACK;
+            uncle->other.color = NODE_COLOR_BLACK;
+
+            // Recolor grandparent to RED
+            current->parent->parent->other.color = NODE_COLOR_RED;
+            
+            // Move the scope to grandparent
+            current = current->parent->parent;
+        }
+
+        // Case 2: Uncle is BLACK
+        else
+        {
+            
+        }
+    }
+
+    // Fix root violation ("Root node is always BLACK")
+    (*head)->other.color=NODE_COLOR_BLACK;
 }

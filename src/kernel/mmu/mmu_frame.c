@@ -1,7 +1,11 @@
-#pragma once
-#include <stdint.h>
+#include <kernel/mmu_frame.h>
 
-void mmu_frame_init(uptr start_addr, usize mem_size);
+
+
+void mmu_frame_init(uptr start_addr, usize mem_size)
+{
+
+}
 
 void mmu_frame_set(uptr address);
 void mmu_frame_clear(uptr address);

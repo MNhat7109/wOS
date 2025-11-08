@@ -12,8 +12,8 @@ typedef enum
 } mmu_zone_type_t;
 
 usize mmu_get_zone_size(int zone_type);
-usize mmu_inc_zone_size(int zone_type, usize value);
-usize mmu_dec_zone_size(int zone_type, usize value);
+void mmu_inc_zone_size(int zone_type, usize value);
+void mmu_dec_zone_size(int zone_type, usize value);
 
 usize mmu_get_total_size();
 void mmu_set_total_size(usize mem_size);

@@ -1,6 +1,16 @@
 #pragma once
 #include <stdint.h>
 
+#define PAGE_SIZE (1<<12)
+static inline HUGE_PAGE_SIZE();
+
+#define HUGE_PAGE_SIZE_NO_PAE (1<<22)
+#define HUGE_PAGE_SIZE_PAE (1<<21)
+
+#ifdef __x86_64__
+#define VERY_HUGE_PAGE_SIZE (1<<30)
+#endif
+
 #define MEMORY_TYPE_FREE 1
 #define MEMORY_TYPE_RESERVED 2
 #define MEMORY_TYPE_ACPI 3
@@ -20,7 +30,6 @@ typedef struct
     memory_region_t regions[];
 } __attribute__((packed)) memory_info_t;
 
-void mmu_init(memory_info_t* mem_map);
 typedef enum
 {
     MMU_PA_FLAG_PRESENT = (1ULL<<0), // Present
@@ -33,24 +42,31 @@ typedef enum
     MMU_PA_FLAG_PSE = (1ULL<<7), // Huge page
     MMU_PA_FLAG_PAT = (1ULL<<12), // Page attribute table
     MMU_PA_FLAG_NX = (1ULL<<63), // Execute disable
-} mmu_page_attr_flags_t;
+} mmu_page_attributes_t;
 
 typedef enum
 {
-    MMU_HUGE_PAGE_1G = 0,
-    MMU_HUGE_PAGE_4M = 1,
-    MMU_HUGE_PAGE_2M = 1,
-} mmu_huge_page_flags_t;
+    MMU_MAP_ID_ENABLE = (1<<0),
+    MMU_HUGE_PAGE = (1<<1),
+    MMU_VERY_HUGE_PAGE= (1<<2),
+} mmu_flags_t;
+
+typedef uptr vaddr_t;
+typedef u64 paddr_t;
 
 #define mmu_byte_to_4k_pages(_n) (((_n) >> 12)+((_n)&((1<<12)-1)))
 #define mmu_byte_to_4m_pages(_n) (((_n) >> 22)+((_n)&((1<<22)-1)))
 #define mmu_byte_to_2m_pages(_n) (((_n) >> 21)+((_n)&((1<<21)-1)))
 #define mmu_byte_to_1g_pages(_n) (((_n) >> 30)+((_n)&((1<<30)-1)))
 
-void mmu_mmap(u64 vaddr, u64 paddr, u64 attributes);
-void mmu_mmapn(u64 addr, u64 offset, u64 n, u64 attributes);
-void mmu_mmap_huge(u64 vaddr, u64 paddr, u64 attributes, int flags);
-void mmu_mmapn_huge(u64 addr, u64 offset, u64 n, u64 attributes, int flags);
+static inline paddr_t mmu_vtop(vaddr_t vaddr);
+static inline vaddr_t mmu_ptov(paddr_t paddr);
 
-u64 mmu_munmap(u64 vaddr);
-u64 mmu_munmapn(u64 vaddr, u64* n);
+void mmu_init(memory_info_t* mem_map);
+void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes);
+void mmu_mmapn(paddr_t addr, usize n, u64 attributes, int flags);
+void mmu_mmap_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);
+void mmu_mmap_very_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);
+
+usize mmu_munmap(vaddr_t vaddr, paddr_t* paddr_out);
+usize mmu_munmapn(vaddr_t vaddr, paddr_t* first_paddr_out, usize n);

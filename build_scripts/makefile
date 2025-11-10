@@ -1,7 +1,8 @@
+include config.mk
 
 DIR=$(abspath ../toolchains)
 
-TARGET=i686-elf
+TARGET+=-elf # Previously, TARGET holds only the arch (e.g. i686, x86_64, etc.). Add "-elf" so that everything won't break
 PREFIX=$(DIR)/$(TARGET)
 
 .PHONY: run

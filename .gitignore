@@ -2,3 +2,4 @@ toolchains
 build/**
 .vscode
 chamber/
+tools/

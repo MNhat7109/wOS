@@ -1,10 +1,18 @@
 
 include build_scripts/config.mk
 
+DUTIL=$(PYTHON) $(SCRIPT_DIR)/diskutil.py
+IMG_PATH=$(BUILD_DIR)/$(OSNAME).img
+MNT=/mnt/$(OSNAME)
+
+IMG_SIZE=262144      # in 512-byte sectors
+PART1_LABEL=BOOT
+PART2_LABEL=ROOT
+
 .PHONY: clean run
 
 run: buildimg
-	qemu-system-i386 --trace "ahci.*" -d int \
+	$(QEMU) --trace "ahci.*" -d int \
 	-machine q35 -M hpet=on \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \
@@ -13,35 +21,67 @@ run: buildimg
 	-drive id=disk0,file=$(BUILD_DIR)/$(OSNAME)_clone.img,format=raw,if=none \
 	-device ide-hd,drive=disk0,bus=ahci.0
 
-buildimg: always $(BUILD_DIR)/$(OSNAME).img
+# -------------------------
+# Build disk image
+# -------------------------
+$(IMG_PATH): $(BOOT_BUILD_DIR)/mbr/mbr.bin \
+              $(BOOT_BUILD_DIR)/stage1/stage1.bin
+	@echo "Building disk image..."
+	dd if=/dev/zero of=$@ bs=512 count=$(IMG_SIZE)
 
-$(BUILD_DIR)/$(OSNAME).img: $(BOOT_DIR)/$(OSNAME)_p1.img $(BOOT_DIR)/mbr/mbr.bin
-	@echo Building image...
-	dd if=/dev/zero of=$@ bs=512 count=69632
-	dd if=$(word 2, $^) of=$@ conv=notrunc
-	dd if=$< of=$@ bs=512 seek=2048 conv=notrunc
+# Convert to MBR
+	$(DUTIL) convert $@ mbr $(word 1, $^)
 
-$(BOOT_DIR)/$(OSNAME)_p1.img: $(BOOT_DIR)/stage1/stage1.bin $(BOOT_DIR)/stage2/stage2.bin $(KRNL_DIR)/kernel.elf
-	dd if=/dev/zero of=$@ bs=512 count=67584
-	mkfs.fat -F 32 -R 32 $@
-	dd if=$< of=$@ bs=512 count=1 conv=notrunc
-	dd if=$< of=$@ bs=512 count=2 seek=2 skip=1 conv=notrunc
-	dd if=$< of=$@ bs=512 seek=6 conv=notrunc
-	cp $(word 2, $^) $(SRC_DIR)/files/part1/boot.bin
-	cp $(word 3, $^) $(SRC_DIR)/files/part1/
-	sudo mkdir -p /mnt/$(OSNAME)
-	sudo mount -t vfat -o loop $@ /mnt/$(OSNAME)
-	sudo cp -r $(SRC_DIR)/files/part1/** /mnt/$(OSNAME)
-	sudo umount /mnt/$(OSNAME)
-	sudo rm -rf /mnt/$(OSNAME)/**
-	
+# Create partitions
+	$(DUTIL) create-part $@ --mode primary --start 1MiB --end 64MiB
+	$(DUTIL) create-part $@ --mode primary --start 65MiB
 
-$(BOOT_DIR)/stage2/stage2.bin $(BOOT_DIR)/stage1/stage1.bin $(BOOT_DIR)/mbr/mbr.bin: bootloader
+# Format partitions
+	$(DUTIL) format $@ --part 1 --fs fat32 --reserved-sectors 16 --label $(PART1_LABEL)
+	$(DUTIL) format $@ --part 2 --fs fat32 --label $(PART2_LABEL)
+
+# Set boot partition
+	$(DUTIL) setboot $@ --part 1 --boot-file $(word 2, $^)
+
+# -------------------------
+# Mount partition 1 and copy boot files
+# -------------------------
+mount1: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin $(KERNEL_BUILD_DIR)/kernel.elf
+	@echo "Mounting partition 1..."
+	$(DUTIL) mount $< $(MNT) --part 1
+	sudo cp -r $(BASE_DIR)/boot/ $(MNT)/
+	sudo cp -r $(word 2, $^) $(MNT)/boot.bin
+	sudo cp -r $(word 3, $^) $(MNT)/
+
+unmount1:
+	@echo "Unmounting partition 1..."
+	$(DUTIL) unmount $(IMG_PATH) $(MNT) --auto-delete
+
+# -------------------------
+# Mount partition 2 and copy root files
+# -------------------------
+mount2: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin $(KERNEL_BUILD_DIR)/kernel.elf
+	@echo "Mounting partition 2..."
+	$(DUTIL) mount $< $(MNT) --part 2
+	sudo cp -r $(BASE_DIR)/root/ $(MNT)/
+	sudo mkdir -p $(MNT)/boot
+	sudo cp -r $(BASE_DIR)/boot/ $(MNT)/boot/
+	sudo cp -r $(word 2, $^) $(MNT)/boot/boot.bin
+	sudo cp -r $(word 3, $^) $(MNT)/boot/
+
+unmount2:
+	@echo "Unmounting partition 2..."
+	$(DUTIL) unmount $(IMG_PATH) $(MNT) --auto-delete
+
+buildimg: always $(IMG_PATH) mount1 unmount1 mount2 unmount2
+	$(DUTIL) reset
+
+$(BOOT_BUILD_DIR)/stage2/stage2.bin $(BOOT_BUILD_DIR)/stage1/stage1.bin $(BOOT_BUILD_DIR)/mbr/mbr.bin: bootloader
 
 bootloader:
 	$(MAKE) -C $(SRC_DIR)/bootloader
 
-$(KRNL_DIR)/kernel.elf: kernel
+$(KERNEL_BUILD_DIR)/kernel.elf: kernel
 kernel:
 	$(MAKE) -C $(SRC_DIR)/kernel
 

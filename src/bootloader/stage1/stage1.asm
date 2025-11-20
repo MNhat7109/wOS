@@ -6,37 +6,36 @@ nop
 
 ; Basically everything about the BIOS param_block
 param_block:
-    .oem_id: db 'mkfs.fat'
-    .bytes_per_sector: dw 512
-    .sectors_per_cluster: db 1
-    .reserved_sectors: dw 32
-    .fat_count: db 2
+    .oem_id: dq 0
+    .bytes_per_sector: dw 0
+    .sectors_per_cluster: db 0
+    .reserved_sectors: dw 0
+    .fat_count: db 0
     .root_dir_entries: dw 0 ; In FAT32, this value must be zero
     .total_sectors: dw 0 ; In FAT32, this is also zero because of
                          ; sector count being larger than 65535.
-    .media_desc_type: db 0xF8
+    .media_desc_type: db 0
     .sectors_per_fat: dw 0 ; Use this for FAT1x (12 or 16) only.
                            ; Leave this zero.
-    .sectors_per_track: dw 32 ; gonna leave this blank. CHS is long gone.
-    .heads: dw 8 ; Same reason.
-    .hidden_sectors: dd 0 ; Nothing to hide.
-    .large_sector_count: dd 67584 ; That's 33 MiB.
+    .sectors_per_track: dw 0
+    .heads: dw 0
+    .hidden_sectors: dd 0
+    .large_sector_count: dd 0
 
 extended_bootrec:
-    .sectors_per_fat: dd 520
+    .sectors_per_fat: dd 0
     .flags: dw 0
     .fat_version: dw 0
-    .root_cluster: dd 2
-    .fs_info_sectors: dw 1
-    .backup_sector: dw 6
+    .root_cluster: dd 0
+    .fs_info_sectors: dw 0
+    .backup_sector: dw 0
     .reserved times 12 db 0
-    .drive_number: db 0x80 ; This number might not be used. 
-                           ; We have MBR with partition entry(ies)
+    .drive_number: db 0
     .flags_nt: db 0
-    .signature: db 0x28
-    .volume_id: db 0xCA, 0xFE, 0xBA, 0xBE
-    .volume_label: db 'W OS       '
-    .system_id: db 'FAT32   '
+    .signature: db 0
+    .volume_id: dq 0
+    .volume_label: db 0
+    .system_id: dq 0
 
 
 _start:

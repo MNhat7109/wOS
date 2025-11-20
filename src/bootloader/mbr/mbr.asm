@@ -51,13 +51,7 @@ part_offset: dw 0
 times 0x1b4-($-$$) nop
 
 UID times 10 db 0
-P1:
-    .attr: db 0x80
-    .chs_start: db 0x20, 0x21,0x00
-    .type: db 0x0c
-    .chs_end: db 0x14, 0x05,0x04
-    .lba_start: dd 2048
-    .count: dd 67584
+P1 times 16 db 0
 P2 times 16 db 0
 P3 times 16 db 0
 P4 times 16 db 0

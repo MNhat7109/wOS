@@ -2,11 +2,12 @@ org 0x600
 [bits 16]
 
 reloc:
+    cli
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
-    mov sp, 0x600
+    mov sp, ax
 
     mov cx, 256
     mov di, 0x600
@@ -15,6 +16,7 @@ reloc:
     jmp 0:lo_main
 
 lo_main:
+    sti
     ; Load stage2 of MBR. 440 bytes of code is just too small to fit anything inside.
     mov [bootDrive], dl
 

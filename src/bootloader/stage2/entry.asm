@@ -20,6 +20,8 @@ entry16:
 
     call do_e820
 
+    ; TODO
+
     xor eax, eax
     call test_a20_gate
     test ax, ax
@@ -57,8 +59,6 @@ entry16:
     xor ebx, ebx
     mov dl, [bootDrive]
     mov bx, [partOffset]
-    ; Fuck it, just forgot to push the parameters to the function start
-    ; Absolute fucking crapass
     push 0x50000
     push ebx
     push edx
@@ -158,16 +158,15 @@ a20_wait2:
     jnz a20_wait2
     ret
 
-entry_cnt equ MEMORY_MAP_OFFSET
 do_e820:
     [bits 16]
     push es
     push ebx
     push ecx
     push edx
-    mov di, MEMORY_MAP_SEGMENT
-    mov es, di
-    mov di, MEMORY_MAP_OFFSET
+    mov ax, ds
+    mov es, ax
+    mov di, memInfoBlock
     add di, 4
     xor bp, bp
 
@@ -186,7 +185,6 @@ do_e820:
     test ebx, ebx
     je .failed
     jmp .jin
-
 .loop:
     mov eax, 0xE820
     mov dword [es:di+20], 1 ; Force ACPI 3.0 Extended attributes
@@ -194,40 +192,276 @@ do_e820:
     int 0x15
     jc .finish
     mov edx, 0x0534D4150
-
 .jin:
     jcxz .skip
     cmp cl, 20
     jbe .noext
     test byte [es:di+20], 1
     je .skip
-
 .noext:
     mov ecx, [es:di+8]
     or ecx, [es:di+12]
     jz .skip
     inc bp
     add di, 24
-
 .skip:
     test ebx,ebx
     jne .loop
-
 .finish:
-    mov [es:entry_cnt], bp
+    mov [ds:memInfoBlock], bp
     pop edx
     pop ecx
     pop ebx
     pop es
     clc
     ret
-
 .failed:
     pop edx
     pop ecx
     pop ebx
     pop es
     stc
+    ret
+
+vesa_vbe_get_info:
+    [bits 16]
+    push bp
+    mov bp, sp
+    push es
+    push di
+
+    mov es, [bp+4]
+    mov di, [bp+6]
+    mov ax, 0x4F00
+    int 0x10
+    cmp ax, 0x4F
+    jne .failed
+    mov ax, 1
+    jmp .after
+.failed:
+    xor ax, ax
+.after:
+    pop di
+    pop es
+    mov sp, bp
+    pop bp
+    ret
+
+vesa_vbe_scan_mode:
+    [bits 16]
+    push bp
+    mov bp, sp
+
+    push dx ; Position: (BP-2)
+    push bx ; Position: (BP-4)
+
+    ; Save segment and offset of video mode address, located in
+    ; VBEInfo block
+    push dword [VBEInfo+0xE] ; Position: (BP-6)
+.calc_ideal_pix_diff:
+    mov ax, [bp+4] ; desired width
+    mov dx, [bp+6] ; desired height
+    mul dx ; Pix count = width*height
+    shl edx, 16
+    add eax, edx ; full 32 bit result of the multiplication
+    push eax ; Save this for convenience
+    ; Position: (BP-10)
+
+    cmp eax, 320*200
+    jl .pix_diff_lt
+    ; x*y-320*200, if (x*y) > (320*200)
+    mov edx, 320*200
+    jmp .done_ideal_pix_diff
+.pix_diff_lt:
+    ; 320*200-x*y, if (x*y) < (320*200)
+    mov edx, eax
+    mov eax, 320*200
+.done_ideal_pix_diff:
+    sub eax, edx
+    push eax ; Save pix_diff
+    ; Position: (BP-14)
+.calc_ideal_depth_diff:
+    mov ax, [bp+8]
+    cmp ax, 8
+    jle .depth_diff_lte
+    ; (d-8)*2, if d > 8
+    sub ax, 8
+    shl ax, 1
+    jmp .done_ideal_depth_diff
+.depth_diff_lte:
+    ; 8-d, if d <= 8
+    mov dx, ax
+    mov ax, 8
+    sub ax, dx
+.done_ideal_depth_diff:
+    push ax ; Save depth_diff
+    ; Position: (BP-18)
+
+    xor bx, bx ; Reset counter, prepare for loop
+.loop:
+    ; Obtain mode at index bx
+    push ds
+    push si
+    mov ax, [bp-8] ; Segment of video mode address
+    mov ds, ax
+    mov si, [bp-6] ; Offset of address
+    add si, bx ; video_mode_addr[bx]
+    mov cx, [ds:si]
+    pop si
+    pop ds
+    ; Break out of loop if mode is 0xFFFF
+    cmp cx, 0xFFFF
+    je .finish
+
+    ; Get mode info
+    push cx
+    push word VBEModeBlock
+    push ds
+    call vesa_vbe_get_mode
+    xor ax, 1
+    jnz .continue
+
+    ; Check for LFB support
+    mov ax, word [VBEModeBlock]
+    and ax, 0x90
+    cmp ax, 0x90
+    jne .continue
+
+    ; Check if memory model is either 4 or 6 (packed or direct color mode)
+    mov al, byte [VBEModeBlock+0x1B]
+    cmp al, 4
+    je .check_desired_res
+.checkmmodel6:
+    cmp al, 6
+    jne .continue
+.check_desired_res:
+    ; Check desired width
+    mov ax, [bp+4]
+    cmp ax, word [VBEModeBlock+0x12]
+    jne .calc_pix_diff
+.check_desired_height:
+    ; Check desired height
+    mov ax, [bp+6]
+    cmp ax, word [VBEModeBlock+0x16]
+    jne .calc_pix_diff
+.check_desired_bpp:
+    ; Check desired color depth
+    mov ax, [bp+8]
+    cmp al, byte [VBEModeBlock+0x1A]
+    jne .calc_depth_diff
+    mov ax, cx ; Save mode[BX] to AX, and get outta here
+    jmp .finish
+; Here, The reason I put depth diff calcuation first, is to get the pix_diff saved
+; after the depth diff, making it easier to compare later
+.calc_depth_diff:
+    mov ax, [bp+8] ; Desired depth
+    xor ah, ah ; Just to be sure that the BPP is capped at 8 bits
+    cmp al, byte [VBEModeBlock+0x1A]
+    jle .calc_depth_diff_lt
+    sub al, byte [VBEModeBlock+0x1A]
+    shl al, 1
+    jmp .done_depth_diff
+.calc_depth_diff_lt:
+    mov dx, ax
+    mov al, byte [VBEModeBlock+0x1A]
+    sub al, dl
+.done_depth_diff:
+    push ax ; Position: (BP-20)
+.calc_pix_diff:
+    mov ax, word [VBEModeBlock+0x12] ; VBE MODE WIDTH
+    mov dx, word [VBEModeBlock+0x14] ; VBE MODE HEIGHT
+    mul dx
+    shl edx, 16
+    mov eax, edx
+    cmp eax, dword [bp-10] ; Compare VBE Mode pix count with desired pix count
+    jl .calc_pix_diff_lt
+    mov edx, dword [bp-10]
+    jmp .done_pix_diff
+.calc_pix_diff_lt:
+    mov edx, eax
+    mov eax, [bp-10]
+.done_pix_diff:
+    sub eax, edx
+    push eax ; Position: (BP-22)
+.final_check:
+    ; Check if either pix_diff < ideal_pix_diff
+    ; or pix_diff == ideal_pix_diff and depth_diff < ideal_depth_diff
+
+    mov eax, [bp-22] ; retrieve pix_diff, without popping
+    cmp eax, dword [bp-14]
+    jl .assign
+    je .depth_check
+    jmp .final_act
+.depth_check:
+    mov ax, [bp-20] ; retrieve depth_diff
+    cmp ax, [bp-18]
+    jge .final_act
+.assign:
+    mov ax, [bp-20]
+    mov [bp-18], ax ; Assign depth_diff to ideal
+    mov ax, [bp-22]
+    mov [bp-14], ax ; Assign pix_diff to ideal
+    mov ax, cx ; Video mode was saved in CX, so save that
+.final_act:
+    add sp, 6 ; Discard previously saved pix_diff and depth_diff
+.continue:
+    inc bx
+    jmp .loop
+.finish:
+    add sp, 14 ; Discard previously saved vars
+    pop bx
+    pop dx
+
+    mov sp, bp
+    pop bp
+    ret
+
+vesa_vbe_get_mode:
+    [bits 16]
+    push bp
+    mov bp, sp
+    push es
+    push di
+    push cx
+
+    mov es, [bp+4]
+    mov di, [bp+6]
+    mov cx, [bp+8]
+    mov ax, 0x4F01
+    int 0x10
+    cmp ax, 0x4F
+    jne .failed
+    mov ax, 1
+    jmp .after
+.failed:
+    xor ax, ax
+.after:
+    pop cx
+    pop di
+    pop es
+    mov sp, bp
+    pop bp
+    ret
+
+vesa_vbe_set_mode:
+    [bits 16]
+    push bp
+    mov bp, sp
+    push cx
+
+    mov cx, [bp+4]
+    mov ax, 0x4F02
+    int 0x10
+    cmp ax, 0x4F
+    jne .failed
+    mov ax, 1
+    jmp .after
+.failed:
+    xor ax, ax
+.after:
+    pop cx
+    mov sp, bp
+    pop bp
     ret
 
 load_gdt:
@@ -276,5 +510,8 @@ gdtr: dw gdtr-gdt-1
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 bootDrive: db 0
 partOffset: db 0
-MEMORY_MAP_SEGMENT equ 0x5000
-MEMORY_MAP_OFFSET equ 0
+idealVESAMode: dw 0x13
+videoBlock: times 32 db 0
+memInfoBlock: times 4096 db 0
+VBEInfo: times 512 db 0
+VBEModeBlock: times 256 db 0

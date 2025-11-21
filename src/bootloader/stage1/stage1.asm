@@ -1,4 +1,4 @@
-org 0x7c00
+org 0x1000
 [bits 16]
 
 jmp short _start
@@ -47,8 +47,16 @@ _start:
 
     ; Setup stack
     mov ss, ax
-    mov sp, 0x7c00
+    mov sp, 0x1000
 
+.reloc:
+    mov cx, 256
+    mov di, 0x1000
+    mov si, 0x7c00
+    repe movsw
+    jmp 0:.pre_main
+
+.pre_main:
     sti
     push es
     push word .main
@@ -61,7 +69,7 @@ _start:
 
     mov dl, [extended_bootrec.drive_number]
     mov bx, 2
-    mov di, 0x7e00
+    mov di, 0x1200
     mov si, [part_offset]
     mov eax, [si+8] ; LBA of partition
     add eax, 2 ; LBA 2048+LBA 2 in partition
@@ -144,7 +152,7 @@ stage1_1:
     shl ax, 16
     mov ax, [di+26]
     mov [current_cluster], eax
-    mov di, 0xA00
+    mov di, stage2_addr
 
 .load_file:
     mov si, [part_offset]
@@ -170,7 +178,7 @@ stage1_1:
     mov es, ax
     mov dl, [extended_bootrec.drive_number]
     mov bx, [part_offset]
-    mov si, 0xA00
+    mov si, stage2_addr
     jmp si
 
 .halt:
@@ -215,7 +223,7 @@ next_cluster:
     pop edx
     ret
 
-
+stage2_addr: equ 0x1800
 current_cluster: dd 0
 nfe_str: db 'File not found', 0x0a,0x0d,0
 hello_str: db 'Hi guys!', 0x0a, 0x0d,0

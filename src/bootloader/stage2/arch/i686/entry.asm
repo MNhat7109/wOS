@@ -21,7 +21,7 @@ entry16:
     call do_e820
 
 ; Copy 'VBE2' to VBEInfo
-    push 'VBE2'
+    push dword 'VBE2'
     mov si, sp
     mov di, VBEInfo
     mov cx, 4
@@ -33,7 +33,7 @@ entry16:
     call vesa_vbe_get_info
 
 ; Compare word to 'VESA'
-    push 'VESA'
+    push dword 'VESA'
     mov si, sp
     mov di, VBEInfo
     mov cx, 4
@@ -43,6 +43,19 @@ entry16:
     je .has_VESA
 ; No VESA for us =((
 ; Erase the whole screen, and jump to A20 enabling
+; Our default resolution pre-VESA is 80x25 char, so we will write 80x25 space chars to clear
+    mov ax, 0xB800
+    mov es, ax
+    xor di, di
+    mov cx, 80*25       ; number of character cells
+    mov ax, 0x0720      ; attribute=07h, character=' ' (space)
+    rep stosw
+
+    ; Also, reset cursor pos
+    mov dx, 0 ; row = 0, col = 0
+    mov bh, 0 ; page 0
+    mov ah, 0x02 ; Set cursor to 0
+    int 0x10
     jmp .a20_enable
 .has_VESA:
 ; Set screen res to 1280x800, color depth 32 bit
@@ -51,27 +64,29 @@ entry16:
     push 32
     call vesa_vbe_scan_mode ; Check if there's one
     or ax, 0x4000 ; Enable LFB
-    
+
     push ax
     call vesa_vbe_set_mode
 
-    mov eax, [VBEModeBlock+0x28]
+    ; Store info on the videoBlock
+    mov eax, [VBEModeBlock+0x28] ; Framebuffer base
     mov dword [videoBlock], eax
     xor eax, eax
-    mov ax, [VBEModeBlock+0x12]
+    mov ax, [VBEModeBlock+0x12] ; Height of res
     mov dword [videoBlock+0x8], eax
     xor eax, eax
-    mov ax, [VBEModeBlock+0x14]
+    mov ax, [VBEModeBlock+0x14] ; Width of res
     mov dword [videoBlock+0xC], eax
     xor eax, eax
-    mov dword [videoBlock+0x10], 32
+    mov dword [videoBlock+0x10], 32 ; BPP of res
     mov ax, [VBEModeBlock+0x10]
-    mov dword [videoBlock+0x14], eax
+    mov dword [videoBlock+0x14], eax ; Pitch of res
     mov eax, [videoBlock+0x8]
     mov edx, [videoBlock+0x14]
     mul dx
     shl edx, 16
-    add eax, edx
+    add eax, edx ; Size of framebuffer = Height * Pitch
+    mov eax, [videoBlock+0x18]
 .a20_enable:
     xor eax, eax
     call test_a20_gate
@@ -88,7 +103,6 @@ entry16:
     or al, 1
     mov cr0, eax
 
-
     jmp dword 0x08:.main_32
 
 .main_32:
@@ -102,7 +116,10 @@ entry16:
     xor ebx, ebx
     mov dl, [bootDrive]
     mov bx, [partOffset]
-    push 0x50000
+    mov esi, memInfoBlock
+    push esi
+    mov esi, videoBlock
+    push esi
     push ebx
     push edx
     call start
@@ -556,7 +573,6 @@ gdtr: dw gdtr-gdt-1
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 bootDrive: db 0
 partOffset: db 0
-idealVESAMode: dw 0x13
 videoBlock: times 32 db 0
 memInfoBlock: times 4096 db 0
 VBEInfo: times 512 db 0

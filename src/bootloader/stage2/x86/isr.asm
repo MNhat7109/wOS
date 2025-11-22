@@ -1,0 +1,102 @@
+[bits 32]
+
+extern ISR_handler
+
+%macro ISR_ERRORCODE 1
+
+global _x86_ISR%1:
+_x86_ISR%1:
+    push %1
+    jmp isr_common
+
+%endmacro
+
+%macro ISR_NO_ERRORCODE 1
+
+global _x86_ISR%1:
+_x86_ISR%1:
+    push 0
+    push %1
+    jmp isr_common
+
+%endmacro
+
+ISR_NO_ERRORCODE 0
+ISR_NO_ERRORCODE 1
+ISR_NO_ERRORCODE 2
+ISR_NO_ERRORCODE 3
+ISR_NO_ERRORCODE 4
+ISR_NO_ERRORCODE 5
+ISR_NO_ERRORCODE 6
+ISR_NO_ERRORCODE 7
+ISR_ERRORCODE 8
+ISR_NO_ERRORCODE 9
+ISR_ERRORCODE 10
+ISR_ERRORCODE 11
+ISR_ERRORCODE 12
+ISR_ERRORCODE 13
+ISR_ERRORCODE 14
+ISR_NO_ERRORCODE 15
+ISR_NO_ERRORCODE 16
+ISR_ERRORCODE 17
+ISR_NO_ERRORCODE 18
+ISR_NO_ERRORCODE 19
+ISR_NO_ERRORCODE 20
+ISR_ERRORCODE 21
+ISR_NO_ERRORCODE 22
+ISR_NO_ERRORCODE 23
+ISR_NO_ERRORCODE 24
+ISR_NO_ERRORCODE 25
+ISR_NO_ERRORCODE 26
+ISR_NO_ERRORCODE 27
+ISR_NO_ERRORCODE 28
+ISR_NO_ERRORCODE 29
+ISR_NO_ERRORCODE 30
+ISR_NO_ERRORCODE 31
+ISR_NO_ERRORCODE 32
+ISR_NO_ERRORCODE 33
+ISR_NO_ERRORCODE 34
+ISR_NO_ERRORCODE 35
+ISR_NO_ERRORCODE 36
+ISR_NO_ERRORCODE 37
+ISR_NO_ERRORCODE 38
+ISR_NO_ERRORCODE 39
+ISR_NO_ERRORCODE 40
+ISR_NO_ERRORCODE 41
+ISR_NO_ERRORCODE 42
+ISR_NO_ERRORCODE 43
+ISR_NO_ERRORCODE 44
+ISR_NO_ERRORCODE 45
+ISR_NO_ERRORCODE 46
+ISR_NO_ERRORCODE 47
+
+isr_common:
+    pusha ; Save in order: eax, ecx, edx, ebx, esp, ebp, esi, edi
+    
+    ; Save ds segment
+    xor eax,eax
+    mov ax, ds
+    push eax
+
+
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    push esp
+    call ISR_handler
+    ; cli
+    ; hlt
+    add esp,4
+
+    pop eax
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+
+    popa
+    add esp, 8
+    iret

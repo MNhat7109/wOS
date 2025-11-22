@@ -20,15 +20,64 @@ entry16:
 
     call do_e820
 
-    ; TODO
+; Copy 'VBE2' to VBEInfo
+    push 'VBE2'
+    mov si, sp
+    mov di, VBEInfo
+    mov cx, 4
+    repe movsb
+    add sp, 4
 
+    push ds
+    push VBEInfo
+    call vesa_vbe_get_info
+
+; Compare word to 'VESA'
+    push 'VESA'
+    mov si, sp
+    mov di, VBEInfo
+    mov cx, 4
+    repe cmpsb
+
+    test cx, cx
+    je .has_VESA
+; No VESA for us =((
+; Erase the whole screen, and jump to A20 enabling
+    jmp .a20_enable
+.has_VESA:
+; Set screen res to 1280x800, color depth 32 bit
+    push 1280
+    push 800
+    push 32
+    call vesa_vbe_scan_mode ; Check if there's one
+    or ax, 0x4000 ; Enable LFB
+    
+    push ax
+    call vesa_vbe_set_mode
+
+    mov eax, [VBEModeBlock+0x28]
+    mov dword [videoBlock], eax
+    xor eax, eax
+    mov ax, [VBEModeBlock+0x12]
+    mov dword [videoBlock+0x8], eax
+    xor eax, eax
+    mov ax, [VBEModeBlock+0x14]
+    mov dword [videoBlock+0xC], eax
+    xor eax, eax
+    mov dword [videoBlock+0x10], 32
+    mov ax, [VBEModeBlock+0x10]
+    mov dword [videoBlock+0x14], eax
+    mov eax, [videoBlock+0x8]
+    mov edx, [videoBlock+0x14]
+    mul dx
+    shl edx, 16
+    add eax, edx
+.a20_enable:
     xor eax, eax
     call test_a20_gate
     test ax, ax
     jnz .GotoPM
     call a20_enable
-
-
 .GotoPM:
     cli
     ; Load GDT
@@ -48,12 +97,6 @@ entry16:
     mov ds, ax
     mov es, ax
     mov ss, ax
-
-
-    mov edi, 0xB8000
-    mov ax, 0
-    mov cx, 2000
-    rep stosw
     
     xor edx, edx
     xor ebx, ebx
@@ -247,6 +290,7 @@ vesa_vbe_get_info:
     pop bp
     ret
 
+current_ideal_mode: dw 0x13
 vesa_vbe_scan_mode:
     [bits 16]
     push bp
@@ -401,7 +445,7 @@ vesa_vbe_scan_mode:
     mov [bp-18], ax ; Assign depth_diff to ideal
     mov ax, [bp-22]
     mov [bp-14], ax ; Assign pix_diff to ideal
-    mov ax, cx ; Video mode was saved in CX, so save that
+    mov [current_ideal_mode], cx; Video mode was saved in CX, so save that
 .final_act:
     add sp, 6 ; Discard previously saved pix_diff and depth_diff
 .continue:
@@ -411,6 +455,8 @@ vesa_vbe_scan_mode:
     add sp, 14 ; Discard previously saved vars
     pop bx
     pop dx
+
+    mov ax, [current_ideal_mode] ; Return value will be the ideal mode
 
     mov sp, bp
     pop bp

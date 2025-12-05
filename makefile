@@ -18,19 +18,19 @@ run: buildimg
 	-device ahci,id=ahci \
 	-drive id=disk,file=$(BUILD_DIR)/$(OSNAME).img,format=raw,if=none \
 	-device ide-hd,drive=disk,bus=ide.0 \
-	-drive id=disk0,file=$(BUILD_DIR)/$(OSNAME)_clone.img,format=raw,if=none \
-	-device ide-hd,drive=disk0,bus=ahci.0
+
+# 	-drive id=disk0,file=$(BUILD_DIR)/$(OSNAME)_clone.img,format=raw,if=none \
+# 	-device ide-hd,drive=disk0,bus=ahci.0
 
 # -------------------------
 # Build disk image
 # -------------------------
-$(IMG_PATH): $(BOOT_BUILD_DIR)/mbr/mbr.bin \
-              $(BOOT_BUILD_DIR)/stage1/stage1.bin
+$(IMG_PATH): $(BOOT_BUILD_DIR)/stage1/stage1.bin
 	@echo "Building disk image..."
 	dd if=/dev/zero of=$@ bs=512 count=$(IMG_SIZE)
 
 # Convert to MBR
-	$(DUTIL) convert $@ mbr $(word 1, $^)
+	$(DUTIL) convert $@ mbr
 
 # Create partitions
 	$(DUTIL) create-part $@ --mode primary --start 1MiB --end 64MiB
@@ -41,17 +41,17 @@ $(IMG_PATH): $(BOOT_BUILD_DIR)/mbr/mbr.bin \
 	$(DUTIL) format $@ --part 2 --fs fat32 --label $(PART2_LABEL)
 
 # Set boot partition
-	$(DUTIL) setboot $@ --part 1 --boot-file $(word 2, $^)
+	$(DUTIL) setboot $@ --part 1 --boot-file $<
 
 # -------------------------
 # Mount partition 1 and copy boot files
 # -------------------------
-mount1: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin $(KERNEL_BUILD_DIR)/kernel.elf
+mount1: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin #$(KERNEL_BUILD_DIR)/kernel.elf
 	@echo "Mounting partition 1..."
 	$(DUTIL) mount $< $(MNT) --part 1
-	sudo cp -r $(BASE_DIR)/boot/ $(MNT)/
+	sudo cp -r $(BASE_DIR)/boot/** $(MNT)/
 	sudo cp -r $(word 2, $^) $(MNT)/boot.bin
-	sudo cp -r $(word 3, $^) $(MNT)/
+#	sudo cp -r $(word 3, $^) $(MNT)/
 
 unmount1:
 	@echo "Unmounting partition 1..."
@@ -60,14 +60,14 @@ unmount1:
 # -------------------------
 # Mount partition 2 and copy root files
 # -------------------------
-mount2: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin $(KERNEL_BUILD_DIR)/kernel.elf
+mount2: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin #$(KERNEL_BUILD_DIR)/kernel.elf
 	@echo "Mounting partition 2..."
 	$(DUTIL) mount $< $(MNT) --part 2
 	sudo cp -r $(BASE_DIR)/root/ $(MNT)/
 	sudo mkdir -p $(MNT)/boot
 	sudo cp -r $(BASE_DIR)/boot/ $(MNT)/boot/
 	sudo cp -r $(word 2, $^) $(MNT)/boot/boot.bin
-	sudo cp -r $(word 3, $^) $(MNT)/boot/
+#	sudo cp -r $(word 3, $^) $(MNT)/boot/
 
 unmount2:
 	@echo "Unmounting partition 2..."
@@ -76,7 +76,7 @@ unmount2:
 buildimg: always $(IMG_PATH) mount1 unmount1 mount2 unmount2
 	$(DUTIL) reset
 
-$(BOOT_BUILD_DIR)/stage2/stage2.bin $(BOOT_BUILD_DIR)/stage1/stage1.bin $(BOOT_BUILD_DIR)/mbr/mbr.bin: bootloader
+$(BOOT_BUILD_DIR)/stage2/stage2.bin $(BOOT_BUILD_DIR)/stage1/stage1.bin: bootloader
 
 bootloader:
 	$(MAKE) -C $(SRC_DIR)/bootloader

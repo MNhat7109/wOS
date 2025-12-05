@@ -1,8 +1,7 @@
 #include "idt.h"
-#include "../x86/x86.h"
-#include "../stdint.h"
+#include "../../stdint.h"
 
-#define IDT_load(_tr) _x86_idt_load((_tr))
+#define IDT_load(_tr) i686_idt_load((_tr))
 
 typedef struct idt_entry_t
 {

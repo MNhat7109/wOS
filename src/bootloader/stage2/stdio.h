@@ -1,6 +1,5 @@
 #pragma once
-#include "vga/vga.h"
-#include "vesa/vesa.h"
+#include "stdint.h"
 
 void kputc(char ch);
 void kputs(const char* str);

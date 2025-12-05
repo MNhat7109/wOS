@@ -28,8 +28,8 @@ entry16:
     repe movsb
     add sp, 4
 
-    push ds
     push VBEInfo
+    push ds
     call vesa_vbe_get_info
 
 ; Compare word to 'VESA'
@@ -58,10 +58,34 @@ entry16:
     int 0x10
     jmp .a20_enable
 .has_VESA:
+; Before setting anything, we must copy the VGA Font stored in the BIOS first.
+; Since we are still in real mode, one BIOS call is enough. Easy and simple.
+; We will use an 8x16 font, 256 glyphs. That makes the total buffer 4096 bytes in capacity.
+    push di
+    push si
+    push ds ; This for our temp buffer
+    push es ; This for the output of BIOS call
+
+    mov ax, 0x1130 ; Get Font Info
+    mov bh, 0x06 ; ROM 8x16 font (MCGA, VGA)
+    int 0x10
+
+    ; Now the font location will be at ES:BP, we want to copy 4096 bytes from that to our desired buffer.
+    push es
+    pop ds ; DS is now ES
+    pop es ; and vice versa
+    mov si, bp ; Source at ES:BP
+    mov di, tempGlyphBuffer ; Dest
+    mov cx, 256*16/4 ; 1024 DWORDs => 4096 bytes
+    rep movsd
+    pop ds ; Restore old DS
+    pop si
+    pop di
+
 ; Set screen res to 1280x800, color depth 32 bit
-    push 1280
-    push 800
     push 32
+    push 800
+    push 1280
     call vesa_vbe_scan_mode ; Check if there's one
     or ax, 0x4000 ; Enable LFB
 
@@ -72,16 +96,21 @@ entry16:
     mov eax, [VBEModeBlock+0x28] ; Framebuffer base
     mov dword [videoBlock], eax
     xor eax, eax
-    mov ax, [VBEModeBlock+0x12] ; Height of res
+    
+    mov ax, [VBEModeBlock+0x14] ; Height of res
     mov dword [videoBlock+0x8], eax
     xor eax, eax
-    mov ax, [VBEModeBlock+0x14] ; Width of res
+    
+    mov ax, [VBEModeBlock+0x12] ; Width of res
     mov dword [videoBlock+0xC], eax
     xor eax, eax
+    
     mov dword [videoBlock+0x10], 32 ; BPP of res
+    
     mov ax, [VBEModeBlock+0x10]
     mov dword [videoBlock+0x14], eax ; Pitch of res
-    mov eax, [videoBlock+0x8]
+
+    mov eax, [videoBlock+0x10]
     mov edx, [videoBlock+0x14]
     mul dx
     shl edx, 16
@@ -111,12 +140,23 @@ entry16:
     mov ds, ax
     mov es, ax
     mov ss, ax
+
+    ; Now that we're in 32-bit mode, we can save font info
+    ; We're doing this, so that the address at our temporary glyph
+    ; is a flat one, not segment:offset
+    
+    mov byte [fontBlock.width], 8
+    mov byte [fontBlock.height], 16
+    mov word [fontBlock.glyph_count], 256
+    mov dword [fontBlock.glyph_buffer], tempGlyphBuffer
     
     xor edx, edx
     xor ebx, ebx
     mov dl, [bootDrive]
     mov bx, [partOffset]
     mov esi, memInfoBlock
+    push esi
+    mov esi, fontBlock
     push esi
     mov esi, videoBlock
     push esi
@@ -363,10 +403,25 @@ vesa_vbe_scan_mode:
     ; Obtain mode at index bx
     push ds
     push si
-    mov ax, [bp-8] ; Segment of video mode address
+    mov ax, [bp-6] ; Segment of video mode address
     mov ds, ax
-    mov si, [bp-6] ; Offset of address
-    add si, bx ; video_mode_addr[bx]
+    mov si, [bp-8] ; Offset of address
+    ; Ok, so after pulling my hair out debug this horrendous code, I've found out that there is a massive bug below,
+    ; I'll comment the upsetting code out instead of deleting just for myself and you guys to see.
+    
+    ; The code below tries to increment the address from far pointer DS:SI, which points to a list of available VESA video modes.
+    ; As you can see, it (past me, on a Wednesday night rushing to go to bed) tries to add the loop counter, BX, to the offset SI
+    ; This is a fatal mistake, as the list of the video modes consists of 2-byte values, meaning that for this code to work, the
+    ; intended behavior must be SI+2*BX.
+
+    ; After fixing this, I have learned my lesson: maybe you shouldn't try to code past midnight and let yourself rest.
+
+    ; Below is the upsetting code:
+    ; add si, bx 
+    
+    mov ax, bx ; Loop counter: BX
+    shl ax, 1 ; BX*2, as the VESA video mode list consists of 2-byte values for video modes
+    add si, ax ; video_mode_addr[bx], or video_mode_addr+bx*2
     mov cx, [ds:si]
     pop si
     pop ds
@@ -403,28 +458,28 @@ vesa_vbe_scan_mode:
 .check_desired_height:
     ; Check desired height
     mov ax, [bp+6]
-    cmp ax, word [VBEModeBlock+0x16]
+    cmp ax, word [VBEModeBlock+0x14]
     jne .calc_pix_diff
 .check_desired_bpp:
     ; Check desired color depth
     mov ax, [bp+8]
-    cmp al, byte [VBEModeBlock+0x1A]
+    cmp al, byte [VBEModeBlock+0x19]
     jne .calc_depth_diff
-    mov ax, cx ; Save mode[BX] to AX, and get outta here
+    mov [current_ideal_mode], cx ; Save mode[BX] to current_ideal_mode, and get outta here
     jmp .finish
 ; Here, The reason I put depth diff calcuation first, is to get the pix_diff saved
 ; after the depth diff, making it easier to compare later
 .calc_depth_diff:
     mov ax, [bp+8] ; Desired depth
     xor ah, ah ; Just to be sure that the BPP is capped at 8 bits
-    cmp al, byte [VBEModeBlock+0x1A]
+    cmp al, byte [VBEModeBlock+0x19]
     jle .calc_depth_diff_lt
-    sub al, byte [VBEModeBlock+0x1A]
+    sub al, byte [VBEModeBlock+0x19]
     shl al, 1
     jmp .done_depth_diff
 .calc_depth_diff_lt:
     mov dx, ax
-    mov al, byte [VBEModeBlock+0x1A]
+    mov al, byte [VBEModeBlock+0x19]
     sub al, dl
 .done_depth_diff:
     push ax ; Position: (BP-20)
@@ -510,9 +565,9 @@ vesa_vbe_set_mode:
     [bits 16]
     push bp
     mov bp, sp
-    push cx
+    push bx
 
-    mov cx, [bp+4]
+    mov bx, [bp+4]
     mov ax, 0x4F02
     int 0x10
     cmp ax, 0x4F
@@ -522,7 +577,7 @@ vesa_vbe_set_mode:
 .failed:
     xor ax, ax
 .after:
-    pop cx
+    pop bx
     mov sp, bp
     pop bp
     ret
@@ -574,6 +629,12 @@ gdtr: dw gdtr-gdt-1
 bootDrive: db 0
 partOffset: db 0
 videoBlock: times 32 db 0
+tempGlyphBuffer: times 4096 db 0
+fontBlock:
+    .height: db 0
+    .width: db 0
+    .glyph_count: dw 0
+    .glyph_buffer: dd 0
 memInfoBlock: times 4096 db 0
 VBEInfo: times 512 db 0
 VBEModeBlock: times 256 db 0

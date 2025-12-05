@@ -1,8 +1,19 @@
-#include "vga.h"
-#include "../io/io.h"
+#include "../../drivers/vga.h"
+#include "io.h"
 
-const u32 SW = 80, SH=25;
-volatile char* vram = (volatile char*)0xb8000;
+#define SW 80
+#define SH 25
+volatile char* vram = (volatile char*)0xB8000;
+
+u32 VGA_get_SCH()
+{
+    return SH;
+}
+
+u32 VGA_get_SCW()
+{
+    return SW;
+}
 
 void putcolor(u32 x, u32 y, u8 fg, u8 bg)
 {
@@ -68,7 +79,6 @@ void VGA_scroll(int lines)
 void VGA_set_cursor(u32 x, u32 y)
 {
     u32 pos = y*SW+x;
-    // TODO: inb and outb
     outb(0x3D4, 0x0F); // Write to register 0x0F to set the highest 8 bits of cursor location.
     // Set the data on port 0x3D5
     outb(0x3D5, ((pos&0xF)>>8));

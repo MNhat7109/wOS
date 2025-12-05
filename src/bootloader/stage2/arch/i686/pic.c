@@ -1,11 +1,13 @@
-#include "pic.h"
-#include "../io/io.h"
-#include "../stdio.h"
+#include "../../drivers/pic.h"
+#include "io.h"
+#include "../../stdio.h"
 
 #define PIC1_CMD_PORT 0x20
 #define PIC2_CMD_PORT 0xA0
 #define PIC1_DATA_PORT (PIC1_CMD_PORT+1)
 #define PIC2_DATA_PORT (PIC2_CMD_PORT+1)
+
+#define iowait outb(0x80, 0);
 
 enum PIC_ICW1
 {
@@ -38,29 +40,29 @@ void PIC_config(u8 offset_pic1, u8 offset_pic2)
 {
     // ICW1
     outb(PIC1_CMD_PORT, ICW1_INIT | ICW1_ICW4);
-    iowait();
+    iowait;
     outb(PIC2_CMD_PORT, ICW1_INIT | ICW1_ICW4);
-    iowait();
+    iowait;
     // ICW2
     outb(PIC1_DATA_PORT, offset_pic1);
-    iowait();
+    iowait;
     outb(PIC2_DATA_PORT, offset_pic2);
-    iowait();
+    iowait;
     // ICW3
     outb(PIC1_DATA_PORT, 0b00000100);
-    iowait();
+    iowait;
     outb(PIC2_DATA_PORT, 0b00000010);
-    iowait();
+    iowait;
     // ICW4
     outb(PIC1_DATA_PORT, ICW4_8086);
-    iowait();
+    iowait;
     outb(PIC2_DATA_PORT, ICW4_8086);
-    iowait();
+    iowait;
 
     outb(PIC1_DATA_PORT, 0);
-    iowait();
+    iowait;
     outb(PIC2_DATA_PORT, 0);
-    iowait();
+    iowait;
 
 }
 

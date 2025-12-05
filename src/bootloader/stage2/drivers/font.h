@@ -2,4 +2,4 @@
 #include "../stdint.h"
 #include <stdbool.h>
 
-bool ELF_load_file(const char* path, void** entry_point);
+bool font_init(void* font_glyph_buffer);

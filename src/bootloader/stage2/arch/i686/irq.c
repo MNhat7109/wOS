@@ -1,8 +1,6 @@
 #include "irq.h"
-#include "pic.h"
-#include "../stdint.h"
-#include "../stdio.h"
-#include "../x86/x86.h"
+#include "../../drivers/pic.h"
+#include "../../stdint.h"
 
 #define PIC_REMAP_OFFSET 0x20
 
@@ -25,7 +23,7 @@ void IRQ_init()
     {
         ISR_reg_handler(PIC_REMAP_OFFSET+i, irq_handler);
     }
-    _x86_enable_interrupt();
+    i686_enable_interrupt();
 }
 
 void IRQ_reg_handler(int irq, irq_handler_t handler)

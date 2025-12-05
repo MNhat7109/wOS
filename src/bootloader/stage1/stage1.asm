@@ -34,7 +34,7 @@ extended_bootrec:
     .flags_nt: db 0
     .signature: db 0
     .volume_id: dq 0
-    .volume_label: db 0
+    .volume_label times 11 db 0
     .system_id: dq 0
 
 
@@ -50,10 +50,12 @@ _start:
     mov sp, 0x1000
 
 .reloc:
+    push si ; Parted's MBR saved the MBR partition offset at register SI, so we save it
     mov cx, 256
     mov di, 0x1000
     mov si, 0x7c00
-    repe movsw
+    rep movsw
+    mov ax, .pre_main
     jmp 0:.pre_main
 
 .pre_main:
@@ -63,9 +65,10 @@ _start:
     retf
 
 .main:
+    pop si ; Retrieve the offset back from stack
     ; Read from disk first
     mov [extended_bootrec.drive_number], dl
-    mov [part_offset], bx
+    mov [part_offset], si
 
     mov dl, [extended_bootrec.drive_number]
     mov bx, 2
@@ -100,13 +103,12 @@ stage1_1:
 
 .loop_root_dir:
     mov dl, [extended_bootrec.drive_number]
-    mov si, [part_offset]
-    mov eax, [si+8]
-    add ax, [current_cluster]
-    add ax, 1070 ; Hard-coded value for the LBA.
+    mov si, [current_cluster]
+    call cluster_to_lba ; LBA is saved in EAX
+    xor bh, bh
+    mov bl, [param_block.sectors_per_cluster]
     mov di, buffer
     xor ecx, ecx
-    mov bl, [param_block.sectors_per_cluster]
     stc
     call disk_read
 
@@ -155,12 +157,12 @@ stage1_1:
     mov di, stage2_addr
 
 .load_file:
-    mov si, [part_offset]
-    add eax, [si+8]
-    add eax, 1070
-    xor ecx, ecx
+    mov si, [current_cluster] ; Load current cluster
+    call cluster_to_lba ; LBA is conveniently saved in EAX
     mov dl, [extended_bootrec.drive_number]
-    mov bx, 1
+    xor bh, bh
+    mov bl, [param_block.sectors_per_cluster]
+    xor cx, cx
     stc
     call disk_read
     mov edx, [current_cluster]
@@ -188,24 +190,70 @@ stage1_1:
 
 %include "../print.inc"
 
+; Input: SI = Cluster number
+; Output: EAX = LBA of cluster
+
+cluster_to_lba:
+    push edx
+    push ebx
+    push di
+
+    mov di, [part_offset]
+    mov eax, [di+8] ; First sector of partition
+    xor ebx, ebx
+    mov bx, [param_block.reserved_sectors] ; Reserved sectors
+    add eax, ebx
+    push eax ; EAX = MBR_LBA_START + R
+    xor eax, eax
+    mov al, [param_block.fat_count]
+    mov ebx, [extended_bootrec.sectors_per_fat]
+    mul ebx ; FAT*SPF
+    mov ebx, eax
+    pop eax ; EAX = MBR_LBA_START + R
+    add eax, ebx
+    push eax ; EAX = MBR_LBA_START + R + FAT*SPF (This is the first sector of FAT32's data region)
+    mov ax, [current_cluster]
+    sub ax, 2
+    xor bh, bh
+    mov bl, [param_block.sectors_per_cluster] ; Sectors per cluster
+    mul bx ; (cluster-2)*SPC
+    shl edx, 16
+    add eax, edx
+    mov ebx, eax
+    pop eax ; EAX = MBR_LBA_START + R + FAT*SPF
+    add eax, ebx ; EAX = MBR_LBA_START + R + FAT*SPF + (cluster-2)*SPC
+
+.done:
+    pop di
+    pop ebx
+    pop edx
+    ret
+
+; FIXME:
 next_cluster:
     push edx
     push ecx
-    push bx
+    push ebx
     push di
     
 .work:
-    shl edx, 2
-    mov ax,dx
-    shr edx, 16
-    mov cx, 512
-    div cx
+    xor eax, eax
+    shl edx, 2 ; Offset = Cluster*4 bytes (Hence FAT32!)
+    mov ax,dx ; Divide 32 bit
+    shr edx, 16 ; High word in DX, Low in AX
+    mov cx, 512 ; Divide by bytes per sector
+    div cx 
+    ; AX = Quotient (Sector position in FAT table)
+    ; DX = Remainder (Index in that one sector)
     push dx
+    ; EAX = FAT_SECTOR_POS
 
     mov dl, [extended_bootrec.drive_number]
     mov si, [part_offset]
-    add eax, [si+8]
-    add ax, [param_block.reserved_sectors]
+    add eax, [si+8] ; EAX = LBA_START+FAT_SECTOR_POS
+    xor ebx, ebx
+    mov bx, [param_block.reserved_sectors]
+    add eax, ebx ; EAX = LBA_START+R+FAT_SECTOR_POS
     xor ecx, ecx
     mov di, FAT
     mov bx, 1
@@ -214,11 +262,12 @@ next_cluster:
 
     pop dx
     add di, dx
-    mov eax, [es:di]
+    mov eax, dword [es:di] ; EAX = Cluster = FAT[idx]
+    and eax, 0x0FFFFFFF
 
 .done:
     pop di
-    pop bx
+    pop ebx
     pop ecx
     pop edx
     ret

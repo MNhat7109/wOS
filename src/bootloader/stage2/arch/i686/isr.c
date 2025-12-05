@@ -1,7 +1,7 @@
 #include "isr.h"
 #include "idt.h"
-#include "../stdio.h"
-#include "../x86/x86.h"
+#include "irq.h"
+#include "../../stdio.h"
 
 isr_handler_t* isr_handler_table = (isr_handler_t*)0x10800;
 
@@ -70,7 +70,7 @@ void __attribute__((cdecl)) ISR_handler(registers_t* regs)
             regs->eax, regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi);
         kprintf("  esp=%x  ebp=%x  eip=%x  eflags=%x  cs=%x  ds=%x  ss=%x\n",
             regs->esp, regs->ebp, regs->eip, regs->eflags, regs->cs, regs->ds, regs->ss);
-        _x86_panic();
+        i686_panic();
     }
 }
 

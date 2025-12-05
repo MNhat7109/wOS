@@ -91,7 +91,7 @@ def cmd_create_part(args):
     if not loopstat:
         args.loop_handler.setup_loop(args.image)
 
-    sproc.run(["parted", "-s", args.image, "mkpart", args.mode, 
+    sproc.run(["parted", "-s", args.image, "--","mkpart", args.mode, 
                args.start, args.end if args.end is not None else "100%"]
               , check=True)
     
@@ -172,19 +172,24 @@ def cmd_set_boot_part(args):
 
     # Now to copy to the right place, we'll add the partition's start offset to 62 (in bytes), as this is
     # where the boot code starts
-    size_bytes = int(info['start'].replace("B", ""))+62
-    sproc.run(["dd", f"if={args.boot_file}", f"of={args.image}", "bs=1","skip=62", f"seek={size_bytes}", "conv=notrunc"], check=True)
+    size_bytes = int(info['start'].replace("B", ""))
+    boot_size_bytes = int(sproc.check_output(["stat", "-c%s", args.boot_file]).strip())
+    sproc.run(["dd", f"if={args.boot_file}", f"of={args.image}", "bs=1","skip=90", f"seek={size_bytes+90}", "count=420", "conv=notrunc"], check=True)
+    sproc.run(["dd", f"if={args.boot_file}", f"of={args.image}", "bs=1","skip=512", f"seek={size_bytes+512*2}", "conv=notrunc"], check=True)
+    sproc.run(["dd", f"if={args.image}", f"of=/tmp/tempbuf.tmp", "bs=1", f"count={boot_size_bytes}","conv=notrunc"], check=True)
+    sproc.run(["dd", f"if=/tmp/tempbuf.tmp", f"of={args.image}", "bs=512", "seek=6", "conv=notrunc"], check=True)
+    sproc.run(["rm", "-f", "/tmp/tempbuf.tmp"])
 
 
 def cmd_convert(args):  
-    #sproc.run(["dd", "if=/dev/zero", f"of={args.image}", "bs=512", "conv=notrunc"], check=True)
     match args.mode:
         case "mbr":
-            sproc.run(["dd", f"if={args.boot_file}", f"of={args.image}", "conv=notrunc"], check=True)
+            mode="msdos"
         case "gpt":
-            print("Not implemented. Sorry!")
+            mode="gpt"
         case _:
             raise ProgramError(f"Error: Unknown mode '{args.mode}'")
+    sproc.run(["parted", "-s", args.image, "mklabel", mode], check=True)
 
 def build_parser():
     parser = ap.ArgumentParser(
@@ -231,7 +236,6 @@ def build_parser():
     parse_convert = sub.add_parser("convert")
     parse_convert.add_argument("image")
     parse_convert.add_argument("mode", choices=["mbr", "gpt"])
-    parse_convert.add_argument("boot_file")
     parse_convert.set_defaults(func=cmd_convert, loop_handler=None)
 
     parse_reset = sub.add_parser("reset")

@@ -2,6 +2,7 @@
 
 #include "../../boot_info.h"
 #include "../../drivers/console.h"
+#include "../../drivers/timer.h"
 #include "../../stdio.h"
 
 #include "idt.h"
@@ -32,7 +33,11 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     i686_isr_init();
     i686_irq_init();
 
+    timer_init();
+
     kprintf("Hello there!\n");
+    sleep(2000);
+    kprintf("Hello again!\n");
 
 end:    
     for (;;);

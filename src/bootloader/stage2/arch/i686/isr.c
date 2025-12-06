@@ -3,7 +3,7 @@
 #include "irq.h"
 #include "../../stdio.h"
 
-isr_handler_t* isr_handler_table = (isr_handler_t*)0x10800;
+isr_handler_t isr_handler_table[256];
 
 static const char* const exceptions[] = {
     "Divide by zero error",
@@ -40,19 +40,19 @@ static const char* const exceptions[] = {
     ""
 };
 
-void ISR_init_gates();
+void i686_isr_init_gates();
 
-void ISR_init()
+void i686_isr_init()
 {
-    ISR_init_gates();
-    for (int i=0;i<48;i++)
+    i686_isr_init_gates();
+    for (int i=0;i<256;i++)
     {
-        IDT_set_entry(i);
+        i686_idt_set_entry(i);
     }
-    //IDT_clear_entry(0x80);
+    i686_idt_clear_entry(0x80);
 }
 
-void __attribute__((cdecl)) ISR_handler(registers_t* regs)
+void __attribute__((cdecl)) i686_isr_handler(registers_t* regs)
 {
     // There's a handler for this interrupt, use it.
     if (isr_handler_table[regs->vector])
@@ -74,8 +74,8 @@ void __attribute__((cdecl)) ISR_handler(registers_t* regs)
     }
 }
 
-void ISR_reg_handler(u8 vector, isr_handler_t handler)
+void i686_isr_register_handler(u8 vector, isr_handler_t handler)
 {
     isr_handler_table[vector] = handler;
-    IDT_set_entry(vector);
+    i686_idt_set_entry(vector);
 }

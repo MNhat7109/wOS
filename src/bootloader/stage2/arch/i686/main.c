@@ -1,7 +1,12 @@
 #include "../../stdint.h"
+
 #include "../../boot_info.h"
 #include "../../drivers/console.h"
 #include "../../stdio.h"
+
+#include "idt.h"
+#include "isr.h"
+#include "irq.h"
 
 boot_info_t boot_info;
 typedef void (*kernel_func_t)(boot_info_t* boot_info);
@@ -22,6 +27,13 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     };
     
     console_init(CONSOLE_MODE_BOTH, &boot_info);
+
+    i686_idt_init();
+    i686_isr_init();
+    i686_irq_init();
+
+    kprintf("Hello there!\n");
+
 end:    
     for (;;);
 }

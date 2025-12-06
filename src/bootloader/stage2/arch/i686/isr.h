@@ -11,5 +11,5 @@ typedef struct
 
 typedef void (*isr_handler_t)(registers_t* regs);
 
-void ISR_init();
-void ISR_reg_handler(u8 vector, isr_handler_t handler);
+void i686_isr_init();
+void i686_isr_register_handler(u8 vector, isr_handler_t handler);

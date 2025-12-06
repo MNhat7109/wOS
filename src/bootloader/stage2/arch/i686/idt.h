@@ -1,4 +1,5 @@
 #pragma once
+#include "../../stdint.h"
 
 enum GATE_TYPE
 {
@@ -7,8 +8,7 @@ enum GATE_TYPE
     TASK_GATE = 0b0101
 };
 
-void IDT_init_entry(unsigned char vector, void* offset, unsigned short selector, unsigned char attributes);
-void IDT_set_entry(unsigned char vector);
-void IDT_clear_entry(unsigned char vector);
-void IDT_init();
-void __attribute__((cdecl)) i686_idt_load(void* idtr);
+void i686_idt_init_entry(u8 vector, void* offset, u16 selector, u8 attributes);
+void i686_idt_set_entry(u8 vector);
+void i686_idt_clear_entry(u8 vector);
+void i686_idt_init();

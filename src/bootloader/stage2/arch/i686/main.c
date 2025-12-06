@@ -1,6 +1,7 @@
 #include "../../stdint.h"
 #include "../../boot_info.h"
 #include "../../drivers/console.h"
+#include "../../stdio.h"
 
 boot_info_t boot_info;
 typedef void (*kernel_func_t)(boot_info_t* boot_info);

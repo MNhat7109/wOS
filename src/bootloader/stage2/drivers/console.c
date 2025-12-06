@@ -66,9 +66,10 @@ void console_putchar(char ch)
 
 void console_write(const char* str)
 {
-    while (*str++)
+    while (*str)
     {
         console_putchar(*str);
+        str++;
     }
 }
 
@@ -109,6 +110,9 @@ void console_putchar_video(char ch)
                 case '\x1B': 
                     console_data.current_video_state = PUTCH_STATE_ESCAPE;
                     break;
+                default:
+                    video_putch(ch, console_data.xpos, console_data.ypos);
+                    console_data.xpos++;
             }
             break;
         case PUTCH_STATE_ESCAPE:

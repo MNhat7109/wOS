@@ -16,9 +16,5 @@ void kputc(char ch)
 
 void kputs(const char* str)
 {
-    while (*str)
-    {
-        kputc(*str);
-        str++;
-    }
+    console_write(str);
 }

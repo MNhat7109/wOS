@@ -229,7 +229,6 @@ cluster_to_lba:
     pop edx
     ret
 
-; FIXME:
 next_cluster:
     push edx
     push ecx

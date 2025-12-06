@@ -162,7 +162,7 @@ stage1_1:
     mov dl, [extended_bootrec.drive_number]
     xor bh, bh
     mov bl, [param_block.sectors_per_cluster]
-    xor cx, cx
+    mov cx, [current_segment]
     stc
     call disk_read
     mov edx, [current_cluster]
@@ -172,6 +172,12 @@ stage1_1:
     
     mov [current_cluster], eax
     add di, 0x200
+    test di, di
+    jnz .can_load_safely
+    mov ax, [current_segment]
+    add ax, 0x1000
+    mov [current_segment], ax
+.can_load_safely:
     jmp .load_file
 
 .finish:
@@ -187,7 +193,7 @@ stage1_1:
     cli
     hlt
 
-
+current_segment: dw 0
 %include "../print.inc"
 
 ; Input: SI = Cluster number

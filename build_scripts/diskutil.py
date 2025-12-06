@@ -105,13 +105,12 @@ def cmd_format_part(args):
         args.loop_handler.setup_loop(args.image)
 
     cmdlist=[]
-    match args.fs:
-        case "fat32":
-            cmdlist += ["mkfs.fat", "-F32"]
-        case "fat16":
-            cmdlist += ["mkfs.fat", "-F16"]
-        case _:
-            raise ProgramError(f"Error: Unrecognized fs: {args.fs}")
+    if args.fs == "fat32":
+        cmdlist += ["mkfs.fat", "-F32"]
+    elif args.fs == "fat16":
+        cmdlist += ["mkfs.fat", "-F16"]
+    else:
+        raise ProgramError(f"Error: Unrecognized fs: {args.fs}")
 
     cmdlist.append(f"-R{args.reserved_sectors if args.reserved_sectors else 8}")
     cmdlist.append(f"-n{args.label if args.label != '' else ''}")
@@ -182,13 +181,12 @@ def cmd_set_boot_part(args):
 
 
 def cmd_convert(args):  
-    match args.mode:
-        case "mbr":
-            mode="msdos"
-        case "gpt":
-            mode="gpt"
-        case _:
-            raise ProgramError(f"Error: Unknown mode '{args.mode}'")
+    if args.mode == "mbr":
+        mode="msdos"
+    elif args.mode == "gpt":
+        mode="gpt"
+    else:
+        raise ProgramError(f"Error: Unknown mode '{args.mode}'")
     sproc.run(["parted", "-s", args.image, "mklabel", mode], check=True)
 
 def build_parser():

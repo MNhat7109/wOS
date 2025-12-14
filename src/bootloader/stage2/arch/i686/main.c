@@ -3,11 +3,10 @@
 #include "../../boot_info.h"
 #include "../../drivers/console.h"
 #include "../../drivers/timer.h"
+#include "../../drivers/rsdp.h"
+#include "../../drivers/disk.h"
+#include "../../drivers/interrupt.h"
 #include "../../stdio.h"
-
-#include "idt.h"
-#include "isr.h"
-#include "irq.h"
 
 boot_info_t boot_info;
 typedef void (*kernel_func_t)(boot_info_t* boot_info);
@@ -29,15 +28,15 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     
     console_init(CONSOLE_MODE_BOTH, &boot_info);
 
-    i686_idt_init();
-    i686_isr_init();
-    i686_irq_init();
+    kprintf("Test kprintf\n"); 
+    kdebugf(DEBUG_INFO, "MAIN", "Test kdebugf 1 of 3: Info display\n");   
+    kdebugf(DEBUG_WARN, "MAIN", "Test kdebugf 2 of 3: Warning display\n");   
+    kdebugf(DEBUG_CRITICAL, "MAIN", "Test kdebugf 3 of 3: Critical error display\n");   
 
+    interrupt_init();
     timer_init();
-
-    kprintf("Hello there!\n");
-    sleep(2000);
-    kprintf("Hello again!\n");
+    rsdp_scan(&boot_info.sdp);
+    disk_init();
 
 end:    
     for (;;);

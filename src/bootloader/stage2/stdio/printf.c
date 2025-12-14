@@ -3,6 +3,12 @@
 #include <stdbool.h>
 #include "../stdint.h"
 
+static const char* str_debugmode[] = {
+    "INFO",
+    "WARN",
+    "CRITICAL"
+};
+
 enum printf_STATES
 {
     PRINTF_STATE_NORMAL,
@@ -46,13 +52,11 @@ void printf_signed(i64 number, int radix)
     else printf_unsigned(number, radix);
 }
 
-void kprintf(const char* fmt, ...)
+void kvprintf(const char* fmt, va_list args)
 {
     int current_state = PRINTF_STATE_NORMAL;
     int length = PRINTF_LENGTH_NORMAL, radix = 10;
     bool number=false, sign=false;
-    va_list args;
-    va_start(args, fmt);
     
     while (*fmt)
     {
@@ -173,5 +177,21 @@ void kprintf(const char* fmt, ...)
         }
         fmt++;
     }
+}
+
+void kprintf(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    kvprintf(fmt, args);
+    va_end(args);
+}
+
+void kdebugf(int mode, const char* module, const char* fmt, ...)
+{
+    kprintf("'%s' [%s]: ", str_debugmode[mode], module);
+    va_list args;
+    va_start(args, fmt);
+    kvprintf(fmt, args);
     va_end(args);
 }

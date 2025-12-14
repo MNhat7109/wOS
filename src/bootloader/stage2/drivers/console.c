@@ -44,6 +44,7 @@ void console_init(int mode, boot_info_t* boot_info)
     console_data.screen_char_width=video_get_SCW();
 
     console_switch_mode(mode);
+    console_write("Console: Hello there! If you can see this message, console works!\n");        
 }
 
 void console_putchar(char ch)
@@ -175,6 +176,11 @@ void console_video_handle_csi()
                 video_setcursor(x,y);
             }
             break;
+        case 'm':
+            {
+                u8 bg = 0, fg=0;
+                // TODO: Add set_color()
+            }
         default:
             break;
     }

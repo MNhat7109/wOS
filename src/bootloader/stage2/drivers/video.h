@@ -21,6 +21,8 @@ typedef enum
     VGA_COLOR_WHITE,
 } legacy_vga_color_t;
 
+extern u32 video_vga_to_24bpp_color_map[16];
+
 void video_init(boot_info_t* boot_info);
 void video_putch(char ch, u32 x, u32 y);
 void video_setcolor(u8 fg, u8 bg);

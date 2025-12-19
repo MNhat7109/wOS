@@ -9,6 +9,7 @@
 #include "../../stdio.h"
 
 boot_info_t boot_info;
+u8 test_buffer[512];
 typedef void (*kernel_func_t)(boot_info_t* boot_info);
 
 void __attribute__((cdecl)) start(u16 bootDrive, 
@@ -38,6 +39,8 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     rsdp_scan(&boot_info.sdp);
     disk_init();
 
+    int status = disk_read(0, 1, test_buffer);
+    if (status==0) kprintf("%x, %x\n", test_buffer, ((u32*)test_buffer)[0]);
 end:    
     for (;;);
 }

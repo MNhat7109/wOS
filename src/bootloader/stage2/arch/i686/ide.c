@@ -51,21 +51,26 @@ int ide_init()
     pci_device_t pci_ide;
     if (!pci_scan(&pci_ide, ide_pci_detect)) return -ENODEV;
 
-    //kdebugf(DEBUG_INFO, MODULE_IDE, " Found %u controllers:\n", ide_data.ctrl_count);
+    ide_scan_controllers();
+    return 0;
+}
+
+void ide_scan_controllers()
+{
+    kdebugf(DEBUG_INFO, MODULE_IDE, "Scanning controllers...\n");
     for (int i=0;i<ide_data.ctrl_count;i++)
     {
         ide_controller_t* current_ctrler = &ide_data.ide_controllers[i];
         kdebugf(DEBUG_INFO, MODULE_IDE, " On controller %d: \n", i);
         ide_setup_devices(current_ctrler);
     }
-    return 0;
 }
 
 int ide_export_controller(int* pos, ide_controller_t** out)
 {
     if (*pos >=ide_data.ctrl_count) return -1;
 
-    *out = &ide_data.ide_controllers[(*pos)++];
+    *out = &ide_data.ide_controllers[(*pos)];
     return 0;
 }
 
@@ -122,6 +127,7 @@ void ide_read_buffer(ide_controller_t* ctrl, u8 channel, u8 reg, void* buffer, u
 int ide_error_check(ide_controller_t* ctrl, u32 drive, u8 initial_error)
 {
     u8 err = initial_error;
+    int ret=0;
     switch (err)
     {
         case 0: break;
@@ -133,6 +139,7 @@ int ide_error_check(ide_controller_t* ctrl, u32 drive, u8 initial_error)
                 case 1:
                     kprintf("Device Fault\n");
                     err=7;
+                    ret=-EDEVFAULT;
                     break;
                 case 2:
                 {
@@ -149,6 +156,7 @@ int ide_error_check(ide_controller_t* ctrl, u32 drive, u8 initial_error)
                     {
                         kprintf("No Media or Media Error\n");
                         err=3;
+                        ret=-EDEVFAULT;
                     }
                     if ((additional_errstatus&ATA_ER_ABRT))
                     {
@@ -188,7 +196,7 @@ int ide_error_check(ide_controller_t* ctrl, u32 drive, u8 initial_error)
             break;
         }
     }
-    return -ECHECKFAIL;
+    return (ret!=0)?ret:(err!=0)?-ECHECKFAIL:0;
 }
 
 int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced)
@@ -196,10 +204,12 @@ int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced)
     for (int i=0; i<4; i++) ide_read_reg(ctrl, channel, ATA_REG_ALTSTATUS);
 
     int timeout = 0;
-    while (ide_read_reg(ctrl, channel, ATA_REG_STATUS)&ATA_SR_BSY)
+    while (1)
     {
-        sleep(1); timeout++;
-        if (timeout > 1000) return -EDEVHUNG;
+        u8 status = ide_read_reg(ctrl, channel, ATA_REG_STATUS);
+        if (!(status&ATA_SR_BSY)) break;
+        timeout++;
+        if (timeout > 1000000) return -EDEVHUNG;
     }
 
     if (advanced)
@@ -226,6 +236,11 @@ void ide_setup_devices(ide_controller_t* ctrl)
     ctrl->channels[ATA_SECONDARY].ctrl  = (ctrl->BAR3 & 0xFFFFFFFC) + 0x376 * (!ctrl->BAR3);
     ctrl->channels[ATA_PRIMARY  ].bmide = (ctrl->BAR4 & 0xFFFFFFFC) + 0; // Bus Master IDE
     ctrl->channels[ATA_SECONDARY].bmide = (ctrl->BAR4 & 0xFFFFFFFC) + 8; // Bus Master IDE
+
+    u32 s=(!ctrl->BAR0)*12; kprintf("%u\n", s);
+    kdebugf(DEBUG_INFO,MODULE_IDE, "BAR0: 0x%x, BAR1: 0x%x, BAR2: 0x%x, BAR3: 0x%x\n",
+    ctrl->channels[ATA_PRIMARY  ].base, ctrl->channels[ATA_PRIMARY  ].ctrl,  
+    ctrl->channels[ATA_SECONDARY].base, ctrl->channels[ATA_SECONDARY].ctrl);
 
     // Disable IRQs
     ide_write_reg(ctrl, ATA_PRIMARY, ATA_REG_CONTROL, 2);
@@ -302,11 +317,11 @@ void ide_setup_devices(ide_controller_t* ctrl)
     for (int l=0;l<4;l++)
         if (ctrl->ide_devices[l]._reserved)
         {
-            kdebugf(DEBUG_INFO, MODULE_IDE, "Drive %s %s, type %s found. Model: %s\n",
+            kdebugf(DEBUG_INFO, MODULE_IDE, "Drive %s %s, type %s found. Model: %s. Capabilities=0x%x\n",
             (const char*[]){"Primary", "Secondary"}[ctrl->ide_devices[l].channel],
             (const char*[]){"Master", "Slave"}[ctrl->ide_devices[l].drive],
             (const char*[]){"ATA", "ATAPI"}[ctrl->ide_devices[l].type],
-            ctrl->ide_devices[l].model);
+            ctrl->ide_devices[l].model, ctrl->ide_devices[l].capabilities);
         }
 }
 
@@ -321,19 +336,22 @@ bool ide_pci_detect(pci_device_t* device)
 
     u32 raw_off = pci_read(device, 0x8);
     u8 class = raw_off >> 24, sub = raw_off >> 16;
-
+    
     if (class != 0x01 || sub != 0x01) return false;
-
+    
+    kprintf("%x\n", raw_off);
     u8 prog_if = raw_off >> 8;
     
     if (prog_if & IDE_PRIMARY_NATIVE)
     {
+        kprintf("I'm here\n");
         ide_data.ide_controllers[pos].BAR0 = pci_read(device, 0x10);    
         ide_data.ide_controllers[pos].BAR1 = pci_read(device, 0x14);    
     }
     
     if (prog_if & IDE_SECONDARY_NATIVE)
     {
+        kprintf("I'm here\n");
         ide_data.ide_controllers[pos].BAR2 = pci_read(device, 0x18);    
         ide_data.ide_controllers[pos].BAR3 = pci_read(device, 0x1C);    
     }
@@ -341,6 +359,9 @@ bool ide_pci_detect(pci_device_t* device)
     ide_data.ide_controllers[pos].BAR4 = pci_read(device, 0x20);
     ide_data.ide_controllers[pos].pci_ide = *device;
 
+    ide_controller_t* ctl = &ide_data.ide_controllers[pos];
+    kdebugf(DEBUG_INFO,MODULE_IDE, "BAR0: 0x%x, BAR1: 0x%x, BAR2: 0x%x, BAR3: 0x%x,BAR4: 0x%x\n",
+    ctl->BAR0, ctl->BAR1, ctl->BAR2, ctl->BAR3, ctl->BAR4);
     ide_data.ctrl_count++;
     return true;
 }

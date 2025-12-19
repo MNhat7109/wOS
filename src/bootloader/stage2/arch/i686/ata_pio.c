@@ -2,6 +2,7 @@
 #include "../../stdio.h"
 #include "../../drivers/ide.h"
 #include "../../drivers/ata_defs.h"
+#include "../../drivers/ata.h"
 #include "../../errno.h"
 #include "io.h"
 
@@ -14,15 +15,18 @@ int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced);
 
 u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lba, u8 count, void* address)
 {
+    kdebugf(DEBUG_INFO, MODULE_IDE_ATA, "Reading %u sector(s), from LBA 0x%x, at drive number %u...\n", count, lba, drive);
+    kdebugf(DEBUG_INFO, MODULE_IDE_ATA, "Support LBA: %s\n", (const char*[]){"no", "yes"}[(ctrl->ide_devices[drive].capabilities>>9)&1]);
     if (!(ctrl->ide_devices[drive].capabilities&0x200))
     {
-        kprintf("ATA: LBA support is required\n");
+        kdebugf(DEBUG_CRITICAL, MODULE_IDE_ATA, "LBA support is required\n");
         return 100;
     }
 
     u8 lba_mode, lba_io[6], head, err;
-    u8 channel = ctrl->ide_devices[drive].channel, slave = ctrl->ide_devices[drive].drive,
-    bus = ctrl->channels[channel].base, words=0x100;
+    u8 channel = ctrl->ide_devices[drive].channel, 
+    slave = ctrl->ide_devices[drive].drive;
+    u16 bus = ctrl->channels[channel].base, words=0x100;
 
     ide_write_reg(ctrl, channel, ATA_REG_CONTROL, 2);
 
@@ -48,9 +52,10 @@ u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lb
         lba_io[5] = 0;
         head = (lba>>24)&0xF;
     }
-    while (ide_read_reg(ctrl, channel, ATA_REG_STATUS)&ATA_SR_BSY);
+    ide_poll(ctrl, channel, 0);
 
-    ide_write_reg(ctrl, channel, ATA_REG_HDDEVSEL, 0xE0 | (slave<<4));
+    ide_write_reg(ctrl, channel, ATA_REG_HDDEVSEL, 0xE0 | (slave<<4) | head);
+    ide_poll(ctrl, channel, 0);
 
     if (lba_mode==2)
     {
@@ -81,7 +86,7 @@ u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lb
     {
         for (int i=0;i<count;i++)
         {
-            if (err=ide_poll(ctrl, channel, 1)) return err;
+            if ((err=ide_poll(ctrl, channel, 1))<0) return err;
             insw(bus, address, words);
             address+=(2*words);
         }

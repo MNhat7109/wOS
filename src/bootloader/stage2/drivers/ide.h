@@ -28,6 +28,7 @@ typedef struct ide_device_t
 
 typedef struct ide_controller_t
 {
+    u32 pos;
     u32 BAR0,BAR1,BAR2,BAR3,BAR4;
     pci_device_t pci_ide;
     ide_channel_reg_t channels[2];
@@ -36,3 +37,4 @@ typedef struct ide_controller_t
 
 int ide_init();
 int ide_export_controller(int* pos, ide_controller_t** out);
+void ide_scan_controllers();

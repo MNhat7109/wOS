@@ -19,6 +19,10 @@
 #define ATA_ER_TK0NF    0x02    // Track 0 not found
 #define ATA_ER_AMNF     0x01    // No address mark
 
+#define ATA_IDENT_CAP_LBA (1<<9)
+#define ATA_IDENT_CAP_DMA (1<<8)
+#define ATA_IDENT_CMDSETS_LBA48 (1<<26)
+
 #define ATA_CMD_READ_PIO          0x20
 #define ATA_CMD_READ_PIO_EXT      0x24
 #define ATA_CMD_READ_DMA          0xC8

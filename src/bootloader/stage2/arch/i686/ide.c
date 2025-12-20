@@ -21,6 +21,7 @@
 #define ATA_IDENT_FIELDVALID   106
 #define ATA_IDENT_MAX_LBA      120
 #define ATA_IDENT_COMMANDSETS  164
+#define ATA_IDENT_COMMANDSETS_EXT  166
 #define ATA_IDENT_MAX_LBA_EXT  200
 
 #define IDE_PRIMARY_NATIVE (1<<1)
@@ -61,7 +62,6 @@ void ide_scan_controllers()
     for (int i=0;i<ide_data.ctrl_count;i++)
     {
         ide_controller_t* current_ctrler = &ide_data.ide_controllers[i];
-        kdebugf(DEBUG_INFO, MODULE_IDE, " On controller %d: \n", i);
         ide_setup_devices(current_ctrler);
     }
 }
@@ -237,7 +237,7 @@ void ide_setup_devices(ide_controller_t* ctrl)
     ctrl->channels[ATA_PRIMARY  ].bmide = (ctrl->BAR4 & 0xFFFFFFFC) + 0; // Bus Master IDE
     ctrl->channels[ATA_SECONDARY].bmide = (ctrl->BAR4 & 0xFFFFFFFC) + 8; // Bus Master IDE
 
-    u32 s=(!ctrl->BAR0)*12; kprintf("%u\n", s);
+    kdebugf(DEBUG_INFO, MODULE_IDE, "On controller ide%u: \n", ctrl->pos);
     kdebugf(DEBUG_INFO,MODULE_IDE, "BAR0: 0x%x, BAR1: 0x%x, BAR2: 0x%x, BAR3: 0x%x\n",
     ctrl->channels[ATA_PRIMARY  ].base, ctrl->channels[ATA_PRIMARY  ].ctrl,  
     ctrl->channels[ATA_SECONDARY].base, ctrl->channels[ATA_SECONDARY].ctrl);
@@ -296,7 +296,8 @@ void ide_setup_devices(ide_controller_t* ctrl)
             ctrl->ide_devices[cnt].drive=j;
             ctrl->ide_devices[cnt].signature=*((u16*)(ide_buf+ATA_IDENT_DEVICETYPE));
             ctrl->ide_devices[cnt].capabilities=*((u16*)(ide_buf+ATA_IDENT_CAPABILITIES));
-            ctrl->ide_devices[cnt].cmd_sets=*((u16*)(ide_buf+ATA_IDENT_COMMANDSETS));
+            ctrl->ide_devices[cnt].cmd_sets=*((u16*)(ide_buf+ATA_IDENT_COMMANDSETS)) |
+            (*((u16*)(ide_buf+ATA_IDENT_COMMANDSETS_EXT)) << 16);
 
             // Get Size. Does the Device use LBA or CHS?
             if (ctrl->ide_devices[cnt].cmd_sets & (1<<26))
@@ -317,51 +318,50 @@ void ide_setup_devices(ide_controller_t* ctrl)
     for (int l=0;l<4;l++)
         if (ctrl->ide_devices[l]._reserved)
         {
-            kdebugf(DEBUG_INFO, MODULE_IDE, "Drive %s %s, type %s found. Model: %s. Capabilities=0x%x\n",
+            kdebugf(DEBUG_INFO, MODULE_IDE, "Drive %s %s, type %s found. Model: %s\n",
             (const char*[]){"Primary", "Secondary"}[ctrl->ide_devices[l].channel],
             (const char*[]){"Master", "Slave"}[ctrl->ide_devices[l].drive],
             (const char*[]){"ATA", "ATAPI"}[ctrl->ide_devices[l].type],
             ctrl->ide_devices[l].model, ctrl->ide_devices[l].capabilities);
+            kdebugf(DEBUG_INFO, MODULE_IDE, "Support LBA: %s\n", (const char*[]){"no", "yes"}[(ctrl->ide_devices[l].capabilities>>9)&1]);
+            kdebugf(DEBUG_INFO, MODULE_IDE, "Support LBA48: %s\n", (const char*[]){"no", "yes"}[(ctrl->ide_devices[l].cmd_sets>>26)&1]);
+            kdebugf(DEBUG_INFO, MODULE_IDE, "Total sector count: %u\n", ctrl->ide_devices[l].size);
         }
 }
 
 bool ide_pci_detect(pci_device_t* device)
 {
     u8 pos = ide_data.ctrl_count;
-    ide_data.ide_controllers[pos].BAR0=
-    ide_data.ide_controllers[pos].BAR1=
-    ide_data.ide_controllers[pos].BAR2=
-    ide_data.ide_controllers[pos].BAR3=
-    ide_data.ide_controllers[pos].BAR4=0;
+    ide_controller_t* ctl = &ide_data.ide_controllers[pos];
+    ctl->BAR0=
+    ctl->BAR1=
+    ctl->BAR2=
+    ctl->BAR3=
+    ctl->BAR4=0;
 
     u32 raw_off = pci_read(device, 0x8);
     u8 class = raw_off >> 24, sub = raw_off >> 16;
     
     if (class != 0x01 || sub != 0x01) return false;
     
-    kprintf("%x\n", raw_off);
     u8 prog_if = raw_off >> 8;
     
     if (prog_if & IDE_PRIMARY_NATIVE)
     {
-        kprintf("I'm here\n");
-        ide_data.ide_controllers[pos].BAR0 = pci_read(device, 0x10);    
-        ide_data.ide_controllers[pos].BAR1 = pci_read(device, 0x14);    
+        ctl->BAR0 = pci_read(device, 0x10);    
+        ctl->BAR1 = pci_read(device, 0x14);    
     }
     
     if (prog_if & IDE_SECONDARY_NATIVE)
     {
-        kprintf("I'm here\n");
-        ide_data.ide_controllers[pos].BAR2 = pci_read(device, 0x18);    
-        ide_data.ide_controllers[pos].BAR3 = pci_read(device, 0x1C);    
+        ctl->BAR2 = pci_read(device, 0x18);    
+        ctl->BAR3 = pci_read(device, 0x1C);    
     }
 
-    ide_data.ide_controllers[pos].BAR4 = pci_read(device, 0x20);
-    ide_data.ide_controllers[pos].pci_ide = *device;
+    ctl->BAR4 = pci_read(device, 0x20);
+    ctl->pci_ide = *device;
 
-    ide_controller_t* ctl = &ide_data.ide_controllers[pos];
-    kdebugf(DEBUG_INFO,MODULE_IDE, "BAR0: 0x%x, BAR1: 0x%x, BAR2: 0x%x, BAR3: 0x%x,BAR4: 0x%x\n",
-    ctl->BAR0, ctl->BAR1, ctl->BAR2, ctl->BAR3, ctl->BAR4);
+    ctl->pos = pos;
     ide_data.ctrl_count++;
     return true;
 }

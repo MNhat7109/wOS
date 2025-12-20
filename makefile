@@ -12,7 +12,7 @@ PART2_LABEL=ROOT
 .PHONY: clean run
 
 run: buildimg
-	$(QEMU) --trace "ahci.*" -d int \
+	$(QEMU) \
 	-machine q35 \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \

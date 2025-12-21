@@ -4,8 +4,9 @@
 #include "../../drivers/console.h"
 #include "../../drivers/timer.h"
 #include "../../drivers/rsdp.h"
-#include "../../drivers/disk.h"
 #include "../../drivers/interrupt.h"
+#include "../../fs/disk.h"
+#include "../../fs/partition.h"
 #include "../../stdio.h"
 
 boot_info_t boot_info;
@@ -39,8 +40,6 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     rsdp_scan(&boot_info.sdp);
     disk_init();
 
-    int status = disk_read(0, 1, test_buffer);
-    if (status==0) kprintf("%x, %x\n", test_buffer, ((u32*)test_buffer)[0]);
 end:    
     for (;;);
 }

@@ -41,6 +41,7 @@
 static struct
 {
     u8 ctrl_count;
+    const char* errmsg;
     ide_controller_t ide_controllers[8];
 } ide_data;
 
@@ -124,79 +125,68 @@ void ide_read_buffer(ide_controller_t* ctrl, u8 channel, u8 reg, void* buffer, u
         ide_write_reg(ctrl, channel, ATA_REG_CONTROL, ctrl->channels[channel].nIEN);
 }
 
-int ide_error_check(ide_controller_t* ctrl, u32 drive, u8 initial_error)
+int ide_error_check(ide_controller_t* ctrl, u32 drive, int error)
 {
-    u8 err = initial_error;
-    int ret=0;
-    switch (err)
+    if (error == 0) return 0;
+    
+    const char* errmsg; bool read_err_reg=false;
+    switch (error)
     {
-        case 0: break;
-        default:
-        {
-            kdebugf(DEBUG_INFO, MODULE_IDE, " ");
-            switch (err)
-            {
-                case 1:
-                    kprintf("Device Fault\n");
-                    err=7;
-                    ret=-EDEVFAULT;
-                    break;
-                case 2:
-                {
-                    u8 additional_errstatus = ide_read_reg(ctrl, ctrl->ide_devices[drive].channel, ATA_REG_ERROR);
-
-                    if (additional_errstatus&ATA_ER_AMNF)
-                    {
-                        kprintf("No Address Mark Found\n");
-                        err=7;
-                    }
-                    if ((additional_errstatus&ATA_ER_TK0NF) || 
-                    (additional_errstatus&ATA_ER_MCR) ||
-                    (additional_errstatus&ATA_ER_MC))
-                    {
-                        kprintf("No Media or Media Error\n");
-                        err=3;
-                        ret=-EDEVFAULT;
-                    }
-                    if ((additional_errstatus&ATA_ER_ABRT))
-                    {
-                        kprintf("Command Aborted\n");
-                        err=20;
-                    }
-                    if (additional_errstatus&ATA_ER_IDNF)
-                    {
-                        kprintf("ID Mark Not Found\n");
-                        err=21;
-                    }
-                    if (additional_errstatus&ATA_ER_UNC)
-                    {
-                        kprintf("Uncorrectable Data Error\n");
-                        err=22;
-                    }
-                    if (additional_errstatus&ATA_ER_BBK)
-                    {
-                        kprintf("Bad sector\n");
-                        err=13;
-                    }
-                    break;
-                }
-                case 3:
-                    kprintf("Reads Nothing\n"); err=23;
-                    break;
-                case 4:
-                    kprintf("Write Protected\n"); err=8;
-                    break;
-            }
-            kprintf("Drive: %s %s, Model: %s\n", 
-                (const char*[]){"Primary", "Secondary"}[ctrl->ide_devices[drive].channel],
-                (const char*[]){"Master", "Slave"}[ctrl->ide_devices[drive].drive],
-                ctrl->ide_devices[drive].model
-            );
-            kprintf("Error number: %u\n", err);
+        case -EDEVFAULT: errmsg = "Device Fault"; break;
+        case -EDEVHUNG: errmsg = "Device Not Responding"; break;
+        case -ENODEV: errmsg = "Device Not Found"; break;
+        case -ECMDFAIL: 
+            errmsg = "Command Failed. Reading Error Register to identify the cause..."; 
+            read_err_reg=true;
             break;
+        case -ECOMP: 
+            errmsg = "Device Incompatible"; break;
+        default:
+            errmsg = "Device Error Occurred"; break;
+    }
+
+    kdebugf(DEBUG_CRITICAL, MODULE_IDE, "Error number: %d, %s\n", error, errmsg);
+    
+
+    if (read_err_reg)
+    {
+        kdebugf(DEBUG_INFO, MODULE_IDE, "Additional info: ");
+        u8 additional_errstatus = ide_read_reg(ctrl, ctrl->ide_devices[drive].channel, ATA_REG_ERROR);
+
+        if (additional_errstatus&ATA_ER_AMNF)
+        {
+            kprintf("No Address Mark Found\n");
+        }
+        if ((additional_errstatus&ATA_ER_TK0NF) || 
+        (additional_errstatus&ATA_ER_MCR) ||
+        (additional_errstatus&ATA_ER_MC))
+        {
+            kprintf("No Media or Media Error\n");
+        }
+        if ((additional_errstatus&ATA_ER_ABRT))
+        {
+            kprintf("Command Aborted\n");
+        }
+        if (additional_errstatus&ATA_ER_IDNF)
+        {
+            kprintf("ID Mark Not Found\n");
+        }
+        if (additional_errstatus&ATA_ER_UNC)
+        {
+            kprintf("Uncorrectable Data Error\n");
+        }
+        if (additional_errstatus&ATA_ER_BBK)
+        {
+            kprintf("Bad sector\n");
         }
     }
-    return (ret!=0)?ret:(err!=0)?-ECHECKFAIL:0;
+
+    kdebugf(DEBUG_INFO, MODULE_IDE, "Drive: %s %s, Model: %s\n", 
+        (const char*[]){"Primary", "Secondary"}[ctrl->ide_devices[drive].channel],
+        (const char*[]){"Master", "Slave"}[ctrl->ide_devices[drive].drive],
+        ctrl->ide_devices[drive].model
+    );
+    return error;
 }
 
 int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced)
@@ -216,9 +206,13 @@ int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced)
     {
         u8 status = ide_read_reg(ctrl, channel, ATA_REG_STATUS);
 
-        if (status&ATA_SR_ERR) return -EDEVFAULT;
+        if (status&ATA_SR_ERR) return -ECMDFAIL;
         if (status&ATA_SR_DF) return -EDEVFAULT;
-        if (!(status&ATA_SR_DRQ)) return -EDEVFAULT;
+        if (!(status&ATA_SR_DRQ)) 
+        {
+            kdebugf(DEBUG_CRITICAL, MODULE_IDE, "DRQ bit is not set\n");
+            return 15; // Invoke manual error printing
+        }
     }
 
     return 0;

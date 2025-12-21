@@ -10,19 +10,19 @@ typedef struct ide_controller_t ide_controller_t;
 
 void ide_write_reg(ide_controller_t* ctrl, u8 channel, u8 reg, u8 value);
 u8 ide_read_reg(ide_controller_t* ctrl, u8 channel, u8 reg);
-int ide_error_check(ide_controller_t* ctrl, u32 drive, u8 initial_error);
+int ide_error_check(ide_controller_t* ctrl, u32 drive, int error);
 int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced);
 
-u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lba, u8 count, void* address)
+int ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lba, u8 count, void* address)
 {
     kdebugf(DEBUG_INFO, MODULE_IDE_ATA, "Reading %u sector(s), from LBA 0x%x, at drive number %u...\n", count, lba, drive);
     if (!(ctrl->ide_devices[drive].capabilities&ATA_IDENT_CAP_LBA))
     {
         kdebugf(DEBUG_CRITICAL, MODULE_IDE_ATA, "LBA support is required\n");
-        return 100;
+        return -ECOMP;
     }
 
-    u8 lba_mode, lba_io[6], head, err;
+    u8 lba_mode, lba_io[6], head; int err;
     u8 channel = ctrl->ide_devices[drive].channel, 
     slave = ctrl->ide_devices[drive].drive;
     u16 bus = ctrl->channels[channel].base, words=0x100;
@@ -34,7 +34,7 @@ u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lb
         if (!(ctrl->ide_devices[drive].cmd_sets&ATA_IDENT_CMDSETS_LBA48))
         {
             kdebugf(DEBUG_CRITICAL, MODULE_IDE_ATA, "LBA48 support is required to access LBA >= 0x10000000\n");
-            return 100;
+            return -ECOMP;
         }
 
         lba_mode=2;
@@ -57,10 +57,10 @@ u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lb
         lba_io[5] = 0;
         head = (lba>>24)&0xF;
     }
-    ide_poll(ctrl, channel, 0);
+    if ((err=ide_poll(ctrl, channel, 0))<0) return err;
 
     ide_write_reg(ctrl, channel, ATA_REG_HDDEVSEL, 0xE0 | (slave<<4) | head);
-    ide_poll(ctrl, channel, 0);
+    if ((err=ide_poll(ctrl, channel, 0))<0) return err;
 
     if (lba_mode==2)
     {
@@ -100,7 +100,7 @@ u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lb
     {
         for (int i=0;i<count;i++)
         {
-            ide_poll(ctrl, channel, 0);
+            if ((err=ide_poll(ctrl, channel, 0))<0) return err;
             outsw(bus, address, words);
             address+=(2*words);
         }
@@ -108,7 +108,7 @@ u8 ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lb
         ide_write_reg(ctrl, channel, ATA_REG_COMMAND,
             (u8[]){ATA_CMD_CACHE_FLUSH,ATA_CMD_CACHE_FLUSH, ATA_CMD_CACHE_FLUSH_EXT}[lba_mode]  
         );
-        ide_poll(ctrl, channel, 0);
+        if ((err=ide_poll(ctrl, channel, 0))<0) return err;
     }
     return 0;
 }
@@ -119,6 +119,6 @@ int ata_pio_ioctl(ide_controller_t* ctrl, int direction, u32 drive, u32 lba, u16
     if (lba+count>=ctrl->ide_devices[drive].size||
         lba>=ctrl->ide_devices[drive].size) return -EOOB;
     
-    u8 io_status = ata_pio_access_drive(ctrl, direction, drive, lba, count, buffer);
+    int io_status = ata_pio_access_drive(ctrl, direction, drive, lba, count, buffer);
     return ide_error_check(ctrl, drive, io_status);
 }

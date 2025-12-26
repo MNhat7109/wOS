@@ -14,17 +14,17 @@ u8 test_buffer[512];
 typedef void (*kernel_func_t)(boot_info_t* boot_info);
 
 void __attribute__((cdecl)) start(u16 bootDrive, 
-    void* partitionOffset, 
+    void* mbr_buffer, 
     framebuffer_t* framebuffer, 
     font_t* font, 
     memory_info_t* memInfo
 )
 {
+    int status;
     boot_info = (boot_info_t){
         .framebuffer = framebuffer,
         .font_out = font,
         .mem_map = memInfo,
-        .partition_offset = partitionOffset,
         // TODO: ACPI
     };
     
@@ -38,7 +38,14 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     interrupt_init();
     timer_init();
     rsdp_scan(&boot_info.sdp);
-    disk_init();
+    
+    status = disk_init(); if (status < 0) goto end;
+    int disk_number = disk_find_boot_dev(mbr_buffer);
+    if (disk_number >= 0) disk_set_current_dev(disk_number);
+
+    disk_t* disk = disk_get_current_dev();
+    partition_read(disk, 0, 0, 1, test_buffer);
+
 
 end:    
     for (;;);

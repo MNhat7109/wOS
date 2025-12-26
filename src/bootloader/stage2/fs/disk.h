@@ -3,6 +3,9 @@
 
 #define MODULE_DISK "DISK"
 
+typedef struct disk_ops_t disk_ops_t;
+typedef struct disk_t disk_t;
+
 typedef enum
 {
     PART_TABLE_TYPE_UNKNOWN,
@@ -23,6 +26,12 @@ typedef enum
     CTL_TYPE_IDE,
 } disk_ctl_type_t;
 
+typedef struct disk_ops_t
+{
+    int (*read)(disk_t* disk, u32 lba, u32 count, void* buffer);
+    int (*write)(disk_t* disk, u32 lba, u32 count, void* buffer);
+} disk_ops_t;
+
 typedef struct disk_t
 {
     u8 occupied;
@@ -33,14 +42,16 @@ typedef struct disk_t
     void* ctrl;
     int media_type;
     u32 drive_number;
+    disk_ops_t* ops;
     
     int partition_table_type;
     u8 partition_count;
     u8 partition_data[2048];
 } disk_t;
 
-void disk_init();
-void disk_set(u32 disk_number);
+int disk_init();
+
+int disk_find_boot_dev(void* lba0_buffer);
+void disk_set_current_dev(u32 disk_number);
+disk_t* disk_get_current_dev();
 void disk_rescan_all(int controller_type);
-int disk_read(u32 lba, u32 count, void* buffer);
-int disk_write(u32 lba, u32 count, void* buffer);

@@ -9,12 +9,19 @@
 extern const char* const str_media[];
 extern const char* const str_ctler[];
 
-u32 disk_mount(disk_t* disks, int ctl_type, int media_type, void* ctl, u32 total_sectors, u32 ctl_drive_number);
+u32 disk_mount(disk_t* disks, int ctl_type, int media_type, disk_ops_t* ops);
 void disk_unmount(disk_t* disks, u32 drive_number);
 
+int disk_ide_read(disk_t* disk, u32 lba, u32 count, void* buffer);
+int disk_ide_write(disk_t* disk, u32 lba, u32 count, void* buffer);
 int disk_populate_ide(disk_t* disks);
 
-int disk_hd_read(disk_t* disk, u32 lba, u32 count, void* buffer)
+static const disk_ops_t ide_ops = {
+    .read = &disk_ide_read,
+    .write = &disk_ide_write
+};
+
+int disk_ide_read(disk_t* disk, u32 lba, u32 count, void* buffer)
 {
     int ret=0, read_status;
     u32 read_lba=lba, left_count=count;
@@ -22,9 +29,9 @@ int disk_hd_read(disk_t* disk, u32 lba, u32 count, void* buffer)
     {
         u32 block=(left_count<255)?left_count:255;
         
-        switch (disk->ctl_type)
+        switch (disk->media_type)
         {
-            case CTL_TYPE_IDE:
+            case MEDIA_TYPE_HD:
                 read_status = ata_ioctl(
                     (ide_controller_t*)disk->ctrl, 
                     ATA_ACCESS_READ, 
@@ -52,7 +59,7 @@ done:
     return ret;
 }
 
-int disk_hd_write(disk_t* disk, u32 lba, u32 count, void* buffer)
+int disk_ide_write(disk_t* disk, u32 lba, u32 count, void* buffer)
 {
     int ret=0, write_status;
     u32 write_lba=lba, left_count=count;
@@ -60,12 +67,12 @@ int disk_hd_write(disk_t* disk, u32 lba, u32 count, void* buffer)
     {
         u32 block=(left_count<255)?left_count:255;
         
-        switch (disk->ctl_type)
+        switch (disk->media_type)
         {
-            case CTL_TYPE_IDE:
+            case MEDIA_TYPE_HD:
                 write_status = ata_ioctl(
                     (ide_controller_t*)disk->ctrl, 
-                    ATA_ACCESS_READ, 
+                    ATA_ACCESS_WRITE, 
                     disk->drive_number, 
                     write_lba,
                     block, 
@@ -105,15 +112,19 @@ int disk_populate_ide(disk_t* disks)
         {
             ide_device_t* dev = &ide_ctl->ide_devices[i];
             if (!dev->_reserved) continue;
+            
             u32 drive_pos = disk_mount(
                 disks, 
                 CTL_TYPE_IDE, 
                 dev->type==IDE_ATA?MEDIA_TYPE_HD:MEDIA_TYPE_CDROM,
-                ide_ctl, 
-                dev->size,
-                dev->drive
+                &ide_ops
             );
+
             disk_t* new_disk = &disks[drive_pos];
+            new_disk->ctrl = (void*)ide_ctl;
+            new_disk->drive_number = dev->drive;
+            new_disk->total_sectors = dev->size;
+
             kdebugf(DEBUG_INFO, MODULE_DISK, "\tDrive %s%u, at controller %s%d, is now online.\n",
             str_media[new_disk->media_type], drive_pos, str_ctler[new_disk->ctl_type], pos);
         }

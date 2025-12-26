@@ -17,7 +17,7 @@ typedef struct partition_t
     struct {
         u8 active : 1;
         u8 type : 7;
-        u8 _reserved : 8;
+        u8 pos : 8;
     } __attribute__((packed)) attributes;
     u32 magic;
 } partition_t;

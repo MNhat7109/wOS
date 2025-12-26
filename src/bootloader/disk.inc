@@ -3,6 +3,7 @@
 ; Output: AL = 0 if successful or 1 if failed
 
 disk_check_ext:
+    [bits 16]
     push dx
     push bx
     mov bx, 0x55aa
@@ -28,6 +29,7 @@ disk_check_ext:
 ; Output: CF set = failure, CF clear = success
 
 disk_read:
+    [bits 16]
     push dx
     push si
     sub sp, 16
@@ -47,9 +49,9 @@ disk_read:
     mov dword [bp], 0
     add bp, 4
 
+    mov cx, 3
 .work:
 
-    mov cx, 3
 
     mov si, sp
     mov ah, 0x42

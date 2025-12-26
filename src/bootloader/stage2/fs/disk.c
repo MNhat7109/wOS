@@ -38,15 +38,12 @@ const char* const str_pt[] = {
 int disk_try_ide(disk_t* disks);
 int disk_rescan_ide(disk_t* disks);
 
-int disk_hd_read(disk_t* disk, u32 lba, u32 count, void* buffer);
-int disk_hd_write(disk_t* disk, u32 lba, u32 count, void* buffer);
-
-u32 disk_mount(disk_t* disks, int ctl_type, int media_type, void* ctl, u32 total_sectors, u32 ctl_drive_number);
+u32 disk_mount(disk_t* disks, int ctl_type, int media_type, disk_ops_t* ops);
 void disk_unmount(disk_t* disks, u32 drive_number);
 u32 disk_allocate_number();
 void disk_free_number(u32 drive_num);
 
-void disk_init()
+int disk_init()
 {
     QUEUE_INIT(disk_data.free_drive_num_list, 32, disk_data.free_list_data);
 
@@ -55,6 +52,12 @@ void disk_init()
 
     // And so on...
 next:
+    if (disk_data.disk_count ==0)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Cannot find any disks. Disk init failed.\n");
+        return -ECHECKFAIL;
+    }
+
     kdebugf(DEBUG_INFO, MODULE_DISK, "Scanning partition tables...\n");
 
     for (int i=0;i<disk_data.disk_count;i++) 
@@ -64,105 +67,47 @@ next:
         partition_table_setup(disk);
     }
     
-    int first_hd_pos = -1;
     for (int i=0;i<disk_data.disk_count;i++) 
     {
         disk_t* disk = &disk_data.disks[i];
         if (!disk->occupied || disk->media_type != MEDIA_TYPE_HD) continue;
-        if (first_hd_pos == -1) first_hd_pos=i;
         kdebugf(DEBUG_INFO, MODULE_DISK, "Disk %s%u, partition type: %s\n",
         str_media[disk->media_type], disk->pos, str_pt[disk->partition_table_type]);    
     }
-
-    if (first_hd_pos<0) return;
-    disk_set(first_hd_pos);
+    return 0;
 }
 
-void disk_set(u32 disk_number)
+u8 buffer[512];
+int disk_find_boot_dev(void* lba0_buffer)
+{
+    if (!lba0_buffer)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Buffer is NULL\n");
+        return -ECHECKFAIL;
+    }
+
+    for (u32 i=0;i<disk_data.disk_count;i++)
+    {
+        disk_t* disk =& disk_data.disks[i];
+        if (disk->media_type != MEDIA_TYPE_HD) continue;
+
+        int status = disk->ops->read(disk, 0, 1, buffer);
+        if (status < 0) continue;
+        
+        if (memcmp((u8*)lba0_buffer+0x1B8, (u8*)(buffer+0x1B8), 4) == 0)
+        return i;
+    }
+    return -1;
+}
+
+void disk_set_current_dev(u32 disk_number)
 {
     disk_data.current_disk = disk_number;
 }
 
-int disk_read(u32 lba, u32 count, void* buffer)
+disk_t* disk_get_current_dev()
 {
-    disk_t* disk = &disk_data.disks[disk_data.current_disk];
-    int read_status, ret=0;
-
-    if (count == 0)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Cannot read with a sector count of 0\n");
-        ret = -EINVAL; goto done;
-    }
-    if (lba >= disk->total_sectors || count > disk->total_sectors - lba)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Attempted to read past the disk's total sector count\n");
-        ret = -EINVAL; goto done;
-    }
-
-    switch (disk->media_type)
-    {
-        case MEDIA_TYPE_HD:
-            ret = disk_hd_read(disk, lba, count, buffer);
-            break;
-        default:
-            ret = -ECHECKFAIL;
-            break;
-    }
-
-done:
-    if (ret<0)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Reading sectors failed.\n");
-    }
-    else
-    {
-        kdebugf(DEBUG_INFO, MODULE_DISK, "Reading sectors done.\n");
-        kdebugf(DEBUG_INFO, MODULE_DISK, "Disk: %s%u, LBA=0x%x, Count: %u\n",
-            str_media[disk->media_type], disk->pos, lba, count);
-    }
-
-    return ret;
-}
-
-int disk_write(u32 lba, u32 count, void* buffer)
-{
-    disk_t* disk = &disk_data.disks[disk_data.current_disk];
-    int write_status, ret=0;
-
-    if (count == 0)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Cannot write with a sector count of 0\n");
-        ret = -EINVAL; goto done;
-    }
-    if (lba >= disk->total_sectors || count > disk->total_sectors - lba)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Attempted to write past the disk's total sector count\n");
-        ret = -EINVAL; goto done;
-    }
-
-    switch (disk->media_type)
-    {
-        case MEDIA_TYPE_HD:
-            ret = disk_hd_write(disk, lba, count, buffer);
-            break;
-        default:
-            ret = -ECHECKFAIL;
-            break;
-    }
-
-done:
-    if (ret<0)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Writing sectors failed.\n");
-    }
-    else
-    {
-        kdebugf(DEBUG_INFO, MODULE_DISK, "Writing sectors done.\n");
-        kdebugf(DEBUG_INFO, MODULE_DISK, "Disk: %s%u, LBA=0x%x, Count: %u\n",
-            str_media[disk->media_type], disk->pos, lba, count);
-    }
-
-    return ret;
+    return &disk_data.disks[disk_data.current_disk];
 }
 
 void disk_rescan_all(int controller_type)
@@ -186,18 +131,16 @@ void disk_rescan_all(int controller_type)
 
 }
 
-u32 disk_mount(disk_t* disks, int ctl_type, int media_type, void* ctl, u32 total_sectors, u32 ctl_drive_number)
+u32 disk_mount(disk_t* disks, int ctl_type, int media_type, disk_ops_t* ops)
 {
     u32 drive_pos = disk_allocate_number();
     disk_t* new_disk = &disks[drive_pos];
     *new_disk = (disk_t){
         .ctl_type = ctl_type,
-        .ctrl = ctl,
-        .drive_number = ctl_drive_number,
         .media_type = media_type,
         .occupied = 1,
         .pos = drive_pos,
-        .total_sectors = total_sectors
+        .ops = ops
     };
     return drive_pos;
 }

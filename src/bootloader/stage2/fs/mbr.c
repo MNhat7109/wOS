@@ -36,8 +36,7 @@ int mbr_setup(disk_t* disk)
     kdebugf(DEBUG_INFO, MODULE_DISK, "Setting up MBR partition table for drive %s%u...\n",
     str_media[disk->media_type], disk->pos);
 
-    disk_set(disk->pos);
-    int status = disk_read(0, 1, mbr_data.buffer);
+    int status = disk->ops->read(disk, 0, 1, mbr_data.buffer);
     if (status < 0) 
     {
         kdebugf(DEBUG_WARN, MODULE_DISK, "Cannot set up MBR partition table for disk: %s%u.\n"
@@ -108,11 +107,9 @@ int mbr_parse_extended_entries(disk_t* disk, u32 ext_lba_base)
     int retval = 0;
     u32 last_ebr=0, cur_ebr = ext_lba_base;
 
-    disk_set(disk->pos);
-
     while (1)
     {
-        int status = disk_read(cur_ebr, 1, mbr_data.buffer);
+        int status = disk->ops->read(disk, cur_ebr, 1, mbr_data.buffer);
         if (status<0)
         {
             kdebugf(DEBUG_WARN, MODULE_DISK, "Cannot set up MBR extended partition table for disk: %s%u.\n"

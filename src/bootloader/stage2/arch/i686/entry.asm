@@ -116,6 +116,46 @@ entry16:
     shl edx, 16
     add eax, edx ; Size of framebuffer = Height * Pitch
     mov eax, [videoBlock+0x18]
+
+; One last job: copy the whole MBR sector for convienience later,
+; when we need to determine where our boot disk resides in.
+    mov dl, [bootDrive]
+    
+    sub sp, 16
+    mov bp, sp
+    mov byte [bp], 16 ; Size of DAP
+    mov byte [bp+1], 0 ; Reserved field
+    mov word [bp+2], 1 ; Read 1 sector
+    mov word [bp+4], mbrBuffer ; Offset
+    mov cx, ds
+    mov word [bp+6], cx ; Segment
+    mov dword [bp+8], 0 ; LBA low
+    mov dword [bp+12], 0 ; LBA hi
+
+    mov cx, 3
+.read:
+    push ds
+    mov ax, ss
+    mov ds, ax
+    mov si, bp
+    mov ah, 0x42
+    int 0x13
+    pop ds
+    jnc .done
+
+.reset:
+    xor ax, ax
+    int 0x13
+    dec cx
+    test cx, cx
+    jnz .read
+.error:
+    cli
+    hlt
+.done:
+    add sp, 16
+
+; Finally, go 32 bit. BIOS interrupts go bye bye.
 .a20_enable:
     xor eax, eax
     call test_a20_gate
@@ -153,7 +193,7 @@ entry16:
     xor edx, edx
     xor ebx, ebx
     mov dl, [bootDrive]
-    mov bx, [partOffset]
+    mov ebx, mbrBuffer
     mov esi, memInfoBlock
     push esi
     mov esi, fontBlock
@@ -629,6 +669,7 @@ gdtr: dw gdtr-gdt-1
 bootDrive: db 0
 partOffset: db 0
 videoBlock: times 32 db 0
+mbrBuffer: times 512 db 0
 tempGlyphBuffer: times 4096 db 0
 fontBlock:
     .height: db 0

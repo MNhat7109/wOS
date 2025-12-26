@@ -34,7 +34,6 @@ typedef struct system_desc_ptr_t system_desc_ptr_t;
 
 typedef struct boot_info_t
 {
-    void* partition_offset;
     framebuffer_t* framebuffer;
     system_desc_ptr_t* sdp;
     font_t* font_out;

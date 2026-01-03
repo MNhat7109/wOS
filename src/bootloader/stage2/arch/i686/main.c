@@ -5,12 +5,15 @@
 #include "../../drivers/timer.h"
 #include "../../drivers/rsdp.h"
 #include "../../drivers/interrupt.h"
+
 #include "../../fs/disk.h"
 #include "../../fs/partition.h"
+#include "../../fs/fs.h"
+#include "../../fs/fat.h"
+
 #include "../../stdio.h"
 
 boot_info_t boot_info;
-u8 test_buffer[512];
 typedef void (*kernel_func_t)(boot_info_t* boot_info);
 
 void __attribute__((cdecl)) start(u16 bootDrive, 
@@ -41,12 +44,24 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     
     status = disk_init(); if (status < 0) goto end;
     int disk_number = disk_find_boot_dev(mbr_buffer);
-    if (disk_number >= 0) disk_set_current_dev(disk_number);
+    if (disk_number < 0 ) goto end;   
 
-    disk_t* disk = disk_get_current_dev();
-    partition_read(disk, 0, 0, 1, test_buffer);
+    disk_t* disk; partition_t* part;
+    status = disk_get(disk_number, &disk);
+    if (status < 0) goto end;
+    status = partition_get(disk, 0, &part);
+    if (status < 0) goto end;
 
+    fs_t fs;
+    fs_init("fat32", fat_load_ops, &fs);
+    status = fs_mount(&fs, disk, part);
+    if (status < 0) goto end;
 
+    file_t* fp;
+    status = fs.ops->open(&fs, "/", &fp);
+    if (status < 0) goto end;
+
+    fs.ops->traverse(fp);
 end:    
     for (;;);
 }

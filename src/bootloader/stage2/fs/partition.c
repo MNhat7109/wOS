@@ -33,7 +33,30 @@ end:
     return status;
 }
 
-int partition_read(disk_t* disk, int partition, u32 lba, u32 count, void* buffer)
+int partition_get(disk_t* disk, int partition_number, partition_t** out)
+{
+    partition_t* partition_list = (partition_t*)disk->partition_data;
+    partition_t* selected = &partition_list[partition_number];
+
+    if (disk->partition_table_type == PART_TABLE_TYPE_UNKNOWN)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Partition table in disk %s%u does not exist\n",
+        str_media[disk->media_type], disk->pos);
+        return -EINVAL;
+    }
+
+    if (!selected->magic)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Partition %s%up%u is corrupted\n",
+        str_media[disk->media_type], disk->pos, selected->attributes.pos);
+        return -1;
+    }
+
+    *out = &partition_list[partition_number];
+    return 0;
+}
+
+int partition_read(disk_t* disk, partition_t* part, u32 lba, u32 count, void* buffer)
 {
     if (disk->partition_table_type==PART_TABLE_TYPE_UNKNOWN) 
     {
@@ -42,13 +65,12 @@ int partition_read(disk_t* disk, int partition, u32 lba, u32 count, void* buffer
             return -EINVAL;
     }
     
-    partition_t* partition_list = (partition_t*)disk->partition_data;
-    u32 read_lba_start = partition_list[partition].lba_start+lba;
+    u32 read_lba_start = part->lba_start+lba;
     
     kdebugf(DEBUG_INFO, MODULE_DISK, "Reading %u sector(s) from %s%up%u...\n",
-    count, str_media[disk->media_type], disk->pos, partition);
+    count, str_media[disk->media_type], disk->pos, part->attributes.pos);
 
-    if (lba >= partition_list[partition].total_sector_count)
+    if (lba >= part->total_sector_count)
     {
         kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Attempted to read past end of partition\n");
         return -EINVAL;
@@ -57,7 +79,7 @@ int partition_read(disk_t* disk, int partition, u32 lba, u32 count, void* buffer
     return disk->ops->read(disk, read_lba_start, count, buffer);
 }
 
-int partition_write(disk_t* disk, int partition, u32 lba, u32 count, void* buffer)
+int partition_write(disk_t* disk, partition_t* part, u32 lba, u32 count, void* buffer)
 {
     if (disk->partition_table_type==PART_TABLE_TYPE_UNKNOWN) 
     {
@@ -66,13 +88,12 @@ int partition_write(disk_t* disk, int partition, u32 lba, u32 count, void* buffe
         return -EINVAL;
     }
 
-    partition_t* partition_list = (partition_t*)disk->partition_data;
-    u32 write_lba_start = partition_list[partition].lba_start+lba;
+    u32 write_lba_start = part->lba_start+lba;
 
     kdebugf(DEBUG_INFO, MODULE_DISK, "Writing %u sector(s) to %s%up%u...\n",
-    count, str_media[disk->media_type], disk->pos, partition);
+    count, str_media[disk->media_type], disk->pos, part->attributes.pos);
     
-    if (lba >= partition_list[partition].total_sector_count)
+    if (lba >= part->total_sector_count)
     {
         kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Attempted to write past end of partition\n");
         return -EINVAL;

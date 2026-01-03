@@ -52,6 +52,5 @@ typedef struct disk_t
 int disk_init();
 
 int disk_find_boot_dev(void* lba0_buffer);
-void disk_set_current_dev(u32 disk_number);
-disk_t* disk_get_current_dev();
+int disk_get(u32 disk_number, disk_t** out);
 void disk_rescan_all(int controller_type);

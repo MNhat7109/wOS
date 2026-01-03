@@ -24,6 +24,7 @@ typedef struct partition_t
 
 typedef struct disk_t disk_t;
 int partition_table_setup(disk_t* disk);
+int partition_get(disk_t* disk, int partition_number, partition_t** out);
 
-int partition_read(disk_t* disk, int partition, u32 lba, u32 count, void* buffer);
-int partition_write(disk_t* disk, int partition, u32 lba, u32 count, void* buffer);
+int partition_read(disk_t* disk, partition_t* part, u32 lba, u32 count, void* buffer);
+int partition_write(disk_t* disk, partition_t* part, u32 lba, u32 count, void* buffer);

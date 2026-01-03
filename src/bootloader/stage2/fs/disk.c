@@ -11,7 +11,6 @@ static struct
 {
     disk_t disks[32];
     u32 disk_count;
-    u32 current_disk;
     QUEUE(u32) free_drive_num_list;
     u32 free_list_data[32];
 } disk_data;
@@ -100,14 +99,18 @@ int disk_find_boot_dev(void* lba0_buffer)
     return -1;
 }
 
-void disk_set_current_dev(u32 disk_number)
+int disk_get(u32 disk_number, disk_t** out)
 {
-    disk_data.current_disk = disk_number;
-}
+    disk_t* disk = &disk_data.disks[disk_number];
+    if (!disk->occupied)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Disk %s%u is offline at the moment\n",
+        str_media[disk->media_type], disk->pos);
+        return -1;
+    }
 
-disk_t* disk_get_current_dev()
-{
-    return &disk_data.disks[disk_data.current_disk];
+    *out = disk;
+    return 0;
 }
 
 void disk_rescan_all(int controller_type)

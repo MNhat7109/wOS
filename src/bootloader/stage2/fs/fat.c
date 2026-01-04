@@ -8,6 +8,8 @@
 #include "../errno.h"
 
 #define SECTOR_SIZE 0x200
+#define FAT_CACHE_SIZE 5
+#define FAT_CACHE_VALUE_UNKNOWN 0xFFFFFFFF
 #define ROOT_DIR_HANDLE -1
 #define MAX_HANDLES 16
 #define DIR_ENTRY_SIZE 32
@@ -121,7 +123,9 @@ static struct
         u8 buffer[SECTOR_SIZE];
     } fsinfo_sector;
 
-    u8 fat_cache[SECTOR_SIZE];
+    u8 fat_cache[FAT_CACHE_SIZE*SECTOR_SIZE];
+    u8 cache_valid;
+    u32 fat_cache_pos;
     u32 data_section_lba;
     
     fat_file_handle_t file_handles[MAX_HANDLES];
@@ -132,10 +136,9 @@ u32 fat_get_sectors_per_fat();
 u32 fat_get_total_sectors();
 u32 fat_get_end_of_cluster();
 u32 fat_get_first_data_sector();
-u32 fat_next_cluster(disk_t* disk, partition_t* part, u32 current_cluster);
 int fat_check_unknown_fs();
 int fat_get_version();
-int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* file_handle);
+int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* file_handle_in, file_handle_t** file_handle_out);
 int fat_find_free_handle(fat_file_handle_t** handle_out);
 
 int fat_read_boot_sector(disk_t* disk, partition_t* part);
@@ -143,6 +146,8 @@ int fat_read_cache(disk_t* disk, partition_t* part, u32 sector_pos);
 int fat_read_fsinfo_sector(disk_t* disk, partition_t* part);
 int fat_check_fsinfo();
 u32 fat_cluster_to_lba(u32 cluster);
+u32 fat_next_cluster(file_t* file_in, u32 current_cluster);
+int fat_next_sector(file_t* file_in, fat_file_handle_t* fat_handle);
 
 int fat_read_dir_entry(file_t* file, fat_entry_t* entry_out);
 int fat_search_entry(file_t* file, const char* entry_name, fat_entry_t* entry_out);
@@ -190,6 +195,7 @@ int fat_init(fs_t* fs)
     status = fat_check_fsinfo();
     if (status < 0) return status;
 
+    fat_partition_data.fat_cache_pos = FAT_CACHE_VALUE_UNKNOWN;
 next:
     u32 total_sectors = fat_get_total_sectors();
     u32 sectors_per_fat = fat_get_sectors_per_fat();
@@ -222,7 +228,7 @@ next:
             .current_pos_in_block = 0
     };
 
-    status = fat_populate_handle(fs, &fat_partition_data.root_dir_handle, &root_handle);
+    status = fat_populate_handle(fs, &fat_partition_data.root_dir_handle, &root_handle, NULL);
     if (status < 0)
     {
         kdebugf(DEBUG_CRITICAL, MODULE_FS, "Failed to populate root directory handle\n");
@@ -238,12 +244,14 @@ next:
     str_fat_ver[fat_partition_data.fat_version]);
     kdebugf(DEBUG_INFO, MODULE_FS, "Additional info:\n"
     "\tTotal sectors: %u\n""\tReserved sector count: %u\n""\tFAT count: %u\n"
-    "\tSectors per FAT:%u\n""\tSectors per cluster: %u\n",
+    "\tSectors per FAT:%u\n""\tSectors per cluster: %u\n"
+    "\tData section start at sector %u\n",
     total_sectors,
     fat_partition_data.boot_sector.fields.fat_comp_hdr.reserved_sectors,
     fat_partition_data.boot_sector.fields.fat_comp_hdr.fat_count,
     sectors_per_fat,
-    fat_partition_data.boot_sector.fields.fat_comp_hdr.sectors_per_cluster);
+    fat_partition_data.boot_sector.fields.fat_comp_hdr.sectors_per_cluster,
+    fat_partition_data.data_section_lba);
 
     return 0;
 }
@@ -282,52 +290,11 @@ u32 fat_read(file_t* file_in, u32 count, void* buffer)
 
         if (bytes_to_read != bytes_left) continue;
 
-        u32 current_sectors_in_cluster = fhp->handle.current_pos_in_block / fhp->handle.block_size;
-        if (++current_sectors_in_cluster >= 
-            fat_partition_data.boot_sector.fields.fat_comp_hdr.sectors_per_cluster
-        )
-        {
-            fhp->handle.current_pos_in_block = 0;
-            fhp->handle.current_block = fat_next_cluster(file_in->fs->disk, 
-                file_in->fs->partition,
-                fhp->handle.current_block
-            );
-        }
-        else fhp->handle.current_pos_in_block = current_sectors_in_cluster*fhp->handle.block_size;
-
-        if (fhp->handle.current_block >= fat_get_end_of_cluster())
-        {
-            fhp->handle.public.file_size= fhp->handle.public.file_pos;
-            break;
-        }
-
-        // Fill in our buffer
-        int status = partition_read(
-            file_in->fs->disk, file_in->fs->partition,
-            fat_cluster_to_lba(fhp->handle.current_block)+
-            current_sectors_in_cluster,
-            1, fhp->fat_file_buffer
-        );
-        if (status < 0)
-        {
-            kdebugf(DEBUG_CRITICAL, MODULE_FS, "Error trying to filling up buffer at pos=0x%x, bs=%u, cluster=%u\n",
-            fhp->handle.current_pos_in_block, fhp->handle.block_size, fhp->handle.current_block);
-            break;
-        }
+        int status = fat_next_sector(file_in, fhp);
+        if (status != 0) break;
     }
 
     return (u8*)buffer-orig_buffer;
-}
-
-int fat_read_boot_sector(disk_t* disk, partition_t* part)
-{
-    int status = partition_read(disk, part, 0, 1, fat_partition_data.boot_sector.buffer);
-    if (status < 0)
-    {
-        kdebugf(DEBUG_CRITICAL, MODULE_FS, "Failed to read boot sector\n");
-    }
-
-    return status;
 }
 
 extern char temp_name[];
@@ -392,40 +359,12 @@ int fat_seek(file_t* file_in, u32 pos)
 
     u32 sector_pos = pos / SECTOR_SIZE;
 
+    fhp->handle.current_block = fhp->handle.first_block;
     while (sector_pos--)
     {
-        u32 current_sectors_in_cluster = fhp->handle.current_pos_in_block / fhp->handle.block_size;
-        if (++current_sectors_in_cluster >= 
-            fat_partition_data.boot_sector.fields.fat_comp_hdr.sectors_per_cluster
-        )
-        {
-            fhp->handle.current_pos_in_block = 0;
-            fhp->handle.current_block = fat_next_cluster(file_in->fs->disk, 
-                file_in->fs->partition,
-                fhp->handle.current_block
-            );
-        }
-        else fhp->handle.current_pos_in_block = current_sectors_in_cluster*fhp->handle.block_size;
-
-        if (fhp->handle.current_block >= fat_get_end_of_cluster())
-        {
-            fhp->handle.public.file_size= pos;
-            break;
-        }
-
-        // Fill in our buffer
-        int status = partition_read(
-            file_in->fs->disk, file_in->fs->partition,
-            fat_cluster_to_lba(fhp->handle.current_block)+
-            current_sectors_in_cluster,
-            1, fhp->fat_file_buffer
-        );
-        if (status < 0)
-        {
-            kdebugf(DEBUG_CRITICAL, MODULE_FS, "Error trying to filling up buffer at pos=0x%x, bs=%u, cluster=%u\n",
-            fhp->handle.current_pos_in_block, fhp->handle.block_size, fhp->handle.current_block);
-            return -ECHECKFAIL;
-        }
+        int status = fat_next_sector(file_in, fhp);
+        if (status > 0) return -status;
+        if (status < 0) break;
     }
 
     fhp->handle.public.file_pos = pos;
@@ -439,6 +378,18 @@ int fat_traverse(file_t* file_in)
     return 0;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+int fat_read_boot_sector(disk_t* disk, partition_t* part)
+{
+    int status = partition_read(disk, part, 0, 1, fat_partition_data.boot_sector.buffer);
+    if (status < 0)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_FS, "Failed to read boot sector\n");
+    }
+
+    return status;
+}
 
 int fat_read_cache(disk_t* disk, partition_t* part, u32 sector_pos)
 {
@@ -458,7 +409,7 @@ int fat_read_cache(disk_t* disk, partition_t* part, u32 sector_pos)
         disk, 
         part, 
         start_of_fat+sector_pos, 
-        fat_sector_count, 
+        FAT_CACHE_SIZE, 
         fat_partition_data.fat_cache
     );
     if (status < 0)
@@ -491,6 +442,8 @@ int fat_check_fsinfo()
         && fat_partition_data.fsinfo_sector.fat32.trailing_sig == 0xAA550000
     ) - 1; // Well, if the criteria aren't met, then it'll return 0-1 = -1, 1-1 = 0 otherwise.
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////
 
 u32 fat_get_sectors_per_fat()
 {
@@ -596,8 +549,11 @@ int fat_check_unknown_fs()
     ) - 1;
 }
 
-u32 fat_next_cluster(disk_t* disk, partition_t* part, u32 current_cluster)
+///////////////////////////////////////////////////////////////////////////////////////////////
+
+u32 fat_next_cluster(file_t* file_in, u32 current_cluster)
 {
+    if (!file_in || !file_in->fs) return FAT_CACHE_VALUE_UNKNOWN;
     u32 offset=0, value = 0;
     switch (fat_partition_data.fat_version)
     {
@@ -612,12 +568,20 @@ u32 fat_next_cluster(disk_t* disk, partition_t* part, u32 current_cluster)
             break;
     }
 
-    u32 sector_pos = offset/fat_partition_data.boot_sector.fields.fat_comp_hdr.bytes_per_sector;
-    u32 byte_idx = offset%fat_partition_data.boot_sector.fields.fat_comp_hdr.bytes_per_sector;
-
-    int status = fat_read_cache(disk, part, sector_pos);
-    if (status < 0) return 0;
+    u32 sector_pos = offset/SECTOR_SIZE;
     
+    if (!fat_partition_data.cache_valid ||
+        sector_pos < fat_partition_data.fat_cache_pos ||
+        sector_pos >= fat_partition_data.fat_cache_pos +FAT_CACHE_SIZE)
+        {
+            int status = fat_read_cache(file_in->fs->disk, file_in->fs->partition, sector_pos);
+            if (status < 0) return FAT_CACHE_VALUE_UNKNOWN;
+            fat_partition_data.cache_valid = 1;
+            fat_partition_data.fat_cache_pos=sector_pos;
+        }
+        
+    u32 byte_idx = offset%SECTOR_SIZE;
+
     switch (fat_partition_data.fat_version)
     {
         case FAT12:
@@ -636,16 +600,16 @@ u32 fat_next_cluster(disk_t* disk, partition_t* part, u32 current_cluster)
     return value;
 }
 
-int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* file_handle)
+int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* file_handle_in, file_handle_t** file_handle_out)
 {
-    if (!fat_handle || !file_handle) 
+    if (!fat_handle || !file_handle_in) 
     {
-        kprintf("%x, %x\n", fat_handle, file_handle);
+        kdebugf(DEBUG_CRITICAL, MODULE_FS, "Bug potential. Check fat_handle or file_handle_in address values\n");
         return -EINVAL;
     }
 
     *fat_handle = (fat_file_handle_t){
-        .handle = *file_handle
+        .handle = *file_handle_in
     };
 
 
@@ -663,6 +627,9 @@ int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* 
         return status;
     }
 
+    if (file_handle_out)
+    *file_handle_out = &fat_handle->handle;
+
     return 0;
 }
 
@@ -678,6 +645,43 @@ int fat_find_free_handle(fat_file_handle_t** handle_out)
     }
     kdebugf(DEBUG_CRITICAL, MODULE_FS, "Out of free file handles\n");
     return -1;
+}
+
+int fat_next_sector(file_t* file_in, fat_file_handle_t* fat_handle)
+{
+    if (++fat_handle->handle.current_pos_in_block == 
+        fat_partition_data.boot_sector.fields.fat_comp_hdr.sectors_per_cluster
+    )
+    {
+        fat_handle->handle.current_pos_in_block = 0;
+        u32 next_cluster = fat_next_cluster(file_in,
+            fat_handle->handle.current_block
+        );
+
+        if (next_cluster >= fat_get_end_of_cluster())
+        {
+            kdebugf(DEBUG_INFO, MODULE_FS, "Reached EOF at cluster=%x\n",next_cluster);
+            return -1;
+        }
+
+        fat_handle->handle.current_block = next_cluster;
+    }
+
+    // Fill in our buffer
+    int status = partition_read(
+        file_in->fs->disk, file_in->fs->partition,
+        fat_cluster_to_lba(fat_handle->handle.current_block)+
+        fat_handle->handle.current_pos_in_block,
+        1, fat_handle->fat_file_buffer
+    );
+    if (status < 0)
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_FS, "Error trying to filling up buffer at pos=0x%x, bs=%u, cluster=%u\n",
+        fat_handle->handle.current_pos_in_block, fat_handle->handle.block_size, fat_handle->handle.current_block);
+        return 1;
+    }
+
+    return 0;
 }
 
 char temp_name[256];

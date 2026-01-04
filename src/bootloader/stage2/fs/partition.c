@@ -67,7 +67,7 @@ int partition_read(disk_t* disk, partition_t* part, u32 lba, u32 count, void* bu
     
     u32 read_lba_start = part->lba_start+lba;
     
-    kdebugf(DEBUG_INFO, MODULE_DISK, "Reading %u sector(s) from %s%up%u...\n",
+    kdebugf_silent(DEBUG_INFO, MODULE_DISK, "Reading %u sector(s) from %s%up%u...\n",
     count, str_media[disk->media_type], disk->pos, part->attributes.pos);
 
     if (lba >= part->total_sector_count)
@@ -90,7 +90,7 @@ int partition_write(disk_t* disk, partition_t* part, u32 lba, u32 count, void* b
 
     u32 write_lba_start = part->lba_start+lba;
 
-    kdebugf(DEBUG_INFO, MODULE_DISK, "Writing %u sector(s) to %s%up%u...\n",
+    kdebugf_silent(DEBUG_INFO, MODULE_DISK, "Writing %u sector(s) to %s%up%u...\n",
     count, str_media[disk->media_type], disk->pos, part->attributes.pos);
     
     if (lba >= part->total_sector_count)

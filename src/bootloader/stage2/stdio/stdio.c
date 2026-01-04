@@ -18,3 +18,13 @@ void kputs(const char* str)
 {
     console_write(str);
 }
+
+void kdebug_besilent()
+{
+    console_switch_mode(CONSOLE_MODE_SERIAL);
+}
+
+void kdebug_benoisy()
+{
+    console_switch_mode(CONSOLE_MODE_BOTH);
+}

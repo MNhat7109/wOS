@@ -48,7 +48,9 @@ typedef union fat_entry_t
     fat_lfn_entry_t lfn;
 } fat_entry_t;
 
-int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* file_handle);
+u32 fat_next_cluster(disk_t* disk, partition_t* part, u32 current_cluster);
+
+int fat_populate_handle(fs_t* fs, fat_file_handle_t* fat_handle, file_handle_t* file_handle_in, file_handle_t** file_handle_out);
 int fat_find_free_handle(fat_file_handle_t** handle_out);
 
 int fat_is_special_dir(fat_standard_entry_t* entry);
@@ -68,15 +70,18 @@ int fat_search_entry(file_t* file, const char* entry_name, fat_entry_t* entry_ou
 {
     fat_entry_t entry; u8 done_lfn_early=0, current_entry=0;
     u32 name_len = strlen(entry_name);
+
     while (fat_read_dir_entry(file, &entry) == 0)
     {
+        if (entry.standard.short_name[0] == 0) break;
         // Parse LFN
         if (entry.lfn.attributes == 0x0F)
         {
             u8 is_last_entry = entry.lfn.order >> 4;
+            current_entry = (entry.lfn.order & 0xF);
+
             if (is_last_entry)
             {
-                current_entry = (entry.lfn.order & 0xF);
                 done_lfn_early = 0;
             }
 
@@ -91,7 +96,7 @@ int fat_search_entry(file_t* file, const char* entry_name, fat_entry_t* entry_ou
 
             for (int i=0;i<5;i++)
             {
-                u16 entry_char = entry.lfn.first_chunk[offset]; // TODO: UTF16 to UTF8
+                u16 entry_char = entry.lfn.first_chunk[i]; // TODO: UTF16 to UTF8
                 if (entry_char == 0 || entry_char == 0xFFFF) goto final_check;
                 if (entry_name[offset] != entry_char) goto done_lfn;
                 offset++;
@@ -99,7 +104,7 @@ int fat_search_entry(file_t* file, const char* entry_name, fat_entry_t* entry_ou
 
             for (int i=0;i<6;i++)
             {
-                u16 entry_char = entry.lfn.next_chunk[offset]; // TODO: UTF16 to UTF8
+                u16 entry_char = entry.lfn.next_chunk[i]; // TODO: UTF16 to UTF8
                 if (entry_char == 0 || entry_char == 0xFFFF) goto final_check;
                 if (entry_name[offset] != entry_char) goto done_lfn;
                 offset++;
@@ -107,12 +112,13 @@ int fat_search_entry(file_t* file, const char* entry_name, fat_entry_t* entry_ou
 
             for (int i=0;i<2;i++)
             {
-                u16 entry_char = entry.lfn.final_chunk[offset]; // TODO: UTF16 to UTF8
+                u16 entry_char = entry.lfn.final_chunk[i]; // TODO: UTF16 to UTF8
                 if (entry_char == 0 || entry_char == 0xFFFF) goto final_check;
                 if (entry_name[offset] != entry_char) goto done_lfn;
                 offset++;
             }
 
+            
             continue;
 final_check:
             if (!is_last_entry || (is_last_entry && offset != name_len))
@@ -131,6 +137,7 @@ done_lfn:
         }
     }
 
+    kdebugf(DEBUG_CRITICAL, MODULE_FS, "%s not found\n", entry_name);
     return -1;
 }
 
@@ -158,13 +165,14 @@ void fat_register_entry(fs_t* fs, fat_standard_entry_t* entry, file_t** file_out
         }
     };
 
-    int status = fat_populate_handle(fs, fhp, &handle_value);
+    file_handle_t* file_handle_out;
+    int status = fat_populate_handle(fs, fhp, &handle_value, &file_handle_out);
     if (status < 0)
     {
         return;
     }
     
-    *file_out = &handle_value.public;
+    *file_out = &file_handle_out->public;
 }
 
 extern char dir_temp_name[];

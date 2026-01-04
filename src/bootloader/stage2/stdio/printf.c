@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include "../stdint.h"
 
+void kdebug_besilent();
+void kdebug_benoisy();
+
 static const char* str_debugmode[] = {
     "INFO",
     "WARN",
@@ -194,4 +197,15 @@ void kdebugf(int mode, const char* module, const char* fmt, ...)
     va_start(args, fmt);
     kvprintf(fmt, args);
     va_end(args);
+}
+
+void kdebugf_silent(int mode, const char* module, const char* fmt, ...)
+{
+    kdebug_besilent();
+    kprintf("'%s' [%s]: ", str_debugmode[mode], module);
+    va_list args;
+    va_start(args, fmt);
+    kvprintf(fmt, args);
+    va_end(args);
+    kdebug_benoisy();
 }

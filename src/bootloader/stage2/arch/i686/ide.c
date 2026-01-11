@@ -198,8 +198,9 @@ int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced)
     {
         u8 status = ide_read_reg(ctrl, channel, ATA_REG_STATUS);
         if (!(status&ATA_SR_BSY)) break;
-        timeout++;
-        if (timeout > 1000000) return -EDEVHUNG;
+        // sleep(1);
+        // timeout++;
+        // if (timeout > 1000) return -EDEVHUNG;
     }
 
     if (advanced)

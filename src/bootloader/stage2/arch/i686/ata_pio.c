@@ -15,7 +15,7 @@ int ide_poll(ide_controller_t* ctrl, u8 channel, u8 advanced);
 
 int ata_pio_access_drive(ide_controller_t* ctrl, int direction, u32 drive, u32 lba, u8 count, void* address)
 {
-    kdebugf(DEBUG_INFO, MODULE_IDE_ATA, "Reading %u sector(s), from LBA 0x%x, at drive number %u...\n", count, lba, drive);
+    kdebugf_silent(DEBUG_INFO, MODULE_IDE_ATA, "Reading %u sector(s), from LBA 0x%x, at drive number %u...\n", count, lba, drive);
     if (!(ctrl->ide_devices[drive].capabilities&ATA_IDENT_CAP_LBA))
     {
         kdebugf(DEBUG_CRITICAL, MODULE_IDE_ATA, "LBA support is required\n");

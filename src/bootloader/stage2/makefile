@@ -1,22 +1,31 @@
 STAGE2_COLORSTART = \e[31m
 STAGE2_COLOREND = \e[0m
 
+BOOT_SRC_DIR = $(SRC_DIR)/bootloader
+STAGE2_SRC_DIR = $(BOOT_SRC_DIR)/stage2
+STAGE2_BUILD_DIR = $(BOOT_BUILD_DIR)/stage2
+
 TARGET_ASMFLAGS += -f elf
 TARGET_CFLAGS += -Oz -Wall -Wextra -Wpedantic -ffreestanding -nostdlib -std=c99
-TARGET_LDFLAGS += -T linker.ld -nostdlib
+TARGET_LDFLAGS += -T $(STAGE2_SRC_DIR)/arch/$(TARGET)/linker.ld -nostdlib
 
-rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+CSRCS = $(wildcard $(STAGE2_SRC_DIR)/*.c) 
+CSRCS_SUBS = $(wildcard $(STAGE2_SRC_DIR)/*/*.c) 
+CSRCS_ARCH = $(wildcard $(STAGE2_SRC_DIR)/arch/$(TARGET)/*.c)
 
-SRC_DIR = $(shell pwd)
-BUILD_DIR = $(shell echo $(subst src,build, $(SRC_DIR)) | sed 's/^[ ]*//')
+COBJS = $(patsubst $(STAGE2_SRC_DIR)/%.c, $(STAGE2_BUILD_DIR)/c/%.o, $(CSRCS))
+COBJS += $(patsubst $(STAGE2_SRC_DIR)/%.c, $(STAGE2_BUILD_DIR)/c/%.o, $(CSRCS_SUBS))
+COBJS += $(patsubst $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.c, $(STAGE2_BUILD_DIR)/c/arch/$(TARGET)/%.o, $(CSRCS_ARCH))
 
-ASMSRCS = $(call rwildcard, $(SRC_DIR), *.asm)
-ASMOBJS = $(patsubst $(SRC_DIR)/%.asm, $(BUILD_DIR)/asm/%.o, $(ASMSRCS))
+ASMSRCS = $(wildcard $(STAGE2_SRC_DIR)/*.asm) 
+ASMSRCS_SUBS = $(wildcard $(STAGE2_SRC_DIR)/*/*.asm) 
+ASMSRCS_ARCH = $(wildcard $(STAGE2_SRC_DIR)/arch/$(TARGET)/*.asm)
 
-CSRCS = $(call rwildcard, $(SRC_DIR), *.c)
-COBJS = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/c/%.o, $(CSRCS))
+ASMOBJS = $(patsubst $(STAGE2_SRC_DIR)/%.asm, $(STAGE2_BUILD_DIR)/asm/%.o, $(ASMSRCS))
+ASMOBJS += $(patsubst $(STAGE2_SRC_DIR)/%.asm, $(STAGE2_BUILD_DIR)/asm/%.o, $(ASMSRCS_SUBS))
+ASMOBJS += $(patsubst $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.asm, $(STAGE2_BUILD_DIR)/asm/arch/$(TARGET)/%.o, $(ASMSRCS_ARCH))
 
-BIN = $(BUILD_DIR)/stage2.bin
+BIN = $(STAGE2_BUILD_DIR)/stage2.bin
 
 .PHONY: run
 
@@ -26,12 +35,22 @@ link: $(ASMOBJS) $(COBJS)
 	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Linking files...\n"
 	$(TARGET_CC) $(TARGET_LDFLAGS) -Wl,-Map=$(BUILD_DIR)/stage2.map -o $(BIN) $^ -lgcc
 
-$(BUILD_DIR)/asm/%.o: $(SRC_DIR)/%.asm
+$(STAGE2_BUILD_DIR)/asm/%.o: $(STAGE2_SRC_DIR)/%.asm
 	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n" 
 	mkdir -p $(@D)
 	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@
 
-$(BUILD_DIR)/c/%.o: $(SRC_DIR)/%.c
+$(STAGE2_BUILD_DIR)/c/%.o: $(STAGE2_SRC_DIR)/%.c
+	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n"
+	mkdir -p $(@D)
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^
+
+$(STAGE2_BUILD_DIR)/asm/arch/$(TARGET)/%.o: $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.asm
+	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n" 
+	mkdir -p $(@D)
+	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@
+
+$(STAGE2_BUILD_DIR)/c/arch/$(TARGET)/%.o: $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.c
 	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n"
 	mkdir -p $(@D)
 	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^

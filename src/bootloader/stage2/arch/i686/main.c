@@ -10,8 +10,11 @@
 #include "../../fs/partition.h"
 #include "../../fs/fs.h"
 #include "../../fs/fat.h"
+#include "../../exec/elf.h"
 
 #include "../../stdio.h"
+
+#define MODULE_MAIN "MAIN"
 
 boot_info_t boot_info;
 typedef void (*kernel_func_t)(boot_info_t* boot_info);
@@ -57,11 +60,11 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     status = fs_mount(&fs, disk, part);
     if (status < 0) goto end;
 
-    file_t* fp;
-    status = fs.ops->open(&fs, "/", &fp);
+    kernel_func_t kernel_init;
+    status = elf_load_32(&fs, "kernel.elf", (void**)&kernel_init);
     if (status < 0) goto end;
 
-    fs.ops->traverse(fp);
+    kdebugf(DEBUG_INFO, MODULE_MAIN, "BOOT_OK\n");
 end:    
     for (;;);
 }

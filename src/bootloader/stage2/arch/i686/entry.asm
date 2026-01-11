@@ -4,6 +4,7 @@ section .entry
 
 extern __bss_start
 extern __end
+extern __stack_end
 
 extern start
 global entry16
@@ -176,10 +177,20 @@ entry16:
 
 .main_32:
     [bits 32]
+    cli
     mov ax, 0x10
     mov ds, ax
     mov es, ax
     mov ss, ax
+    mov esp, __stack_end
+
+    ; Clear bss
+    mov edi, __bss_start
+    mov ecx, __end
+    sub ecx, edi
+    mov al, 0
+    cld
+    rep stosb
 
     ; Now that we're in 32-bit mode, we can save font info
     ; We're doing this, so that the address at our temporary glyph

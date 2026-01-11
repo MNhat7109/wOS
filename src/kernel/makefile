@@ -1,11 +1,11 @@
 KERNEL_COLORSTART = \e[37m
 KERNEL_COLOREND = \e[0m
 
+KERNEL_SRC_DIR = $(SRC_DIR)/kernel
+
 TARGET_ASMFLAGS += -f elf
 TARGET_CFLAGS += -Oz -Wall -Wextra -Wpedantic -ffreestanding -nostdlib -std=c99
-TARGET_LDFLAGS += -T linker.ld -nostdlib
-
-KERNEL_SRC_DIR = $(SRC_DIR)/kernel
+TARGET_LDFLAGS += -T $(KERNEL_SRC_DIR)/arch/$(TARGET)/linker.ld -nostdlib
 
 CSRCS = $(wildcard $(KERNEL_SRC_DIR)/*.c) 
 CSRCS_SUBS = $(wildcard $(KERNEL_SRC_DIR)/*/*.c) 

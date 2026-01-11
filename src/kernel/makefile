@@ -42,7 +42,7 @@ link: $(ASMOBJS) $(COBJS)
 $(KERNEL_BUILD_DIR)/asm/%.o: $(KERNEL_SRC_DIR)/%.asm
 	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Compiling $^\n" 
 	mkdir -p $(@D)
-	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@
+	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@ -I$(INC_DIR)
 
 $(KERNEL_BUILD_DIR)/c/%.o: $(KERNEL_SRC_DIR)/%.c
 	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Compiling $^\n"

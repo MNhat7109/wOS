@@ -7,13 +7,13 @@ CSRCS=$(wildcard $(LIBC_DIR)/*.c)
 CSRCS_SUBS=$(wildcard $(LIBC_DIR)/*/*.c)
 
 COBJS=$(patsubst $(LIBC_DIR)/%.c, $(LIBC_BUILD_DIR)/c/%.o, $(CSRCS))
-COBJS+=$(patsubst $(LIBC_DIR)/%/%.c, $(LIBC_BUILD_DIR)/c/%/%.o, $(CSRCS_SUBS))
+COBJS+=$(patsubst $(LIBC_DIR)/%.c, $(LIBC_BUILD_DIR)/c/%.o, $(CSRCS_SUBS))
 
 ASMSRCS=$(wildcard $(LIBC_DIR)/*.asm)
 ASMSRCS_SUBS=$(wildcard $(LIBC_DIR)/*/*.asm)
 
 ASMOBJS=$(patsubst $(LIBC_DIR)/%.asm, $(LIBC_BUILD_DIR)/asm/%.o, $(ASMSRCS))
-ASMOBJS+=$(patsubst $(LIBC_DIR)/%/%.asm, $(LIBC_BUILD_DIR)/asm/%/%.o, $(ASMSRCS_SUBS))
+ASMOBJS+=$(patsubst $(LIBC_DIR)/%.asm, $(LIBC_BUILD_DIR)/asm/%.o, $(ASMSRCS_SUBS))
 
 STATIC_LIB=$(LIBC_BUILD_DIR)/$(LIBNAME).a
 

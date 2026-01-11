@@ -15,7 +15,7 @@ CSRCS_ARCH = $(wildcard $(STAGE2_SRC_DIR)/arch/$(TARGET)/*.c)
 
 COBJS = $(patsubst $(STAGE2_SRC_DIR)/%.c, $(STAGE2_BUILD_DIR)/c/%.o, $(CSRCS))
 COBJS += $(patsubst $(STAGE2_SRC_DIR)/%.c, $(STAGE2_BUILD_DIR)/c/%.o, $(CSRCS_SUBS))
-COBJS += $(patsubst $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.c, $(STAGE2_BUILD_DIR)/c/arch/$(TARGET)/%.o, $(CSRCS_ARCH))
+COBJS += $(patsubst $(STAGE2_SRC_DIR)/%.c, $(STAGE2_BUILD_DIR)/c/%.o, $(CSRCS_ARCH))
 
 ASMSRCS = $(wildcard $(STAGE2_SRC_DIR)/*.asm) 
 ASMSRCS_SUBS = $(wildcard $(STAGE2_SRC_DIR)/*/*.asm) 
@@ -23,7 +23,7 @@ ASMSRCS_ARCH = $(wildcard $(STAGE2_SRC_DIR)/arch/$(TARGET)/*.asm)
 
 ASMOBJS = $(patsubst $(STAGE2_SRC_DIR)/%.asm, $(STAGE2_BUILD_DIR)/asm/%.o, $(ASMSRCS))
 ASMOBJS += $(patsubst $(STAGE2_SRC_DIR)/%.asm, $(STAGE2_BUILD_DIR)/asm/%.o, $(ASMSRCS_SUBS))
-ASMOBJS += $(patsubst $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.asm, $(STAGE2_BUILD_DIR)/asm/arch/$(TARGET)/%.o, $(ASMSRCS_ARCH))
+ASMOBJS += $(patsubst $(STAGE2_SRC_DIR)/%.asm, $(STAGE2_BUILD_DIR)/asm/%.o, $(ASMSRCS_ARCH))
 
 BIN = $(STAGE2_BUILD_DIR)/stage2.bin
 
@@ -41,16 +41,6 @@ $(STAGE2_BUILD_DIR)/asm/%.o: $(STAGE2_SRC_DIR)/%.asm
 	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@
 
 $(STAGE2_BUILD_DIR)/c/%.o: $(STAGE2_SRC_DIR)/%.c
-	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n"
-	mkdir -p $(@D)
-	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^
-
-$(STAGE2_BUILD_DIR)/asm/arch/$(TARGET)/%.o: $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.asm
-	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n" 
-	mkdir -p $(@D)
-	$(TARGET_ASM) $(TARGET_ASMFLAGS) $^ -o $@
-
-$(STAGE2_BUILD_DIR)/c/arch/$(TARGET)/%.o: $(STAGE2_SRC_DIR)/arch/$(TARGET)/%.c
 	@printf "$(STAGE2_COLORSTART)[STAGE2]$(STAGE2_COLOREND): Compiling $^\n"
 	mkdir -p $(@D)
 	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^

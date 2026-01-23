@@ -1,6 +1,7 @@
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu.h>
+#include <kernel/debug.h>
 
 #include <bitmap.h>
 
@@ -9,16 +10,22 @@ static struct
     bitmap_t frame_bmp;
 } mmu_frame_data;
 
-void mmu_frame_init(uptr start_addr, usize mem_size)
+void mmu_frame_init(u8* bmp_buffer_addr, u64 mem_size)
 {
+    kdebugf(DEBUG_INFO, "MMU", "Bitmap buffer addr: 0x%x\n", bmp_buffer_addr);
+
+    // Get total memory page count
+    usize total_pages = mmu_byte_to_4k_pages(mem_size);
+
     // Initialize bitmap
-    bitmap_init(&mmu_frame_data.frame_bmp, start_addr, mem_size);
+    bitmap_init(&mmu_frame_data.frame_bmp, bmp_buffer_addr, total_pages);
 
     // Lock bitmap pages on the bitmap
     usize bmp_size = mmu_frame_data.frame_bmp.size;
     usize page_count = mmu_byte_to_4k_pages(bmp_size);
 
-    mmu_frame_set_n(start_addr, page_count);
+    kdebugf(DEBUG_INFO, "MMU", "Bitmap size: %u\n", bmp_size);
+    mmu_frame_set_n((uptr)mmu_vtop((vaddr_t)bmp_buffer_addr), page_count);
 }
 
 void mmu_frame_set(uptr address)
@@ -68,7 +75,7 @@ void mmu_frame_clear_n(uptr address, usize n)
 
 uptr mmu_frame_next()
 {
-    for (int i=0;i<mmu_frame_data.frame_bmp.size; i++)
+    for (int i=0;i<mmu_frame_data.frame_bmp.bit_count; i++)
     {
         if (bitmap_get(&mmu_frame_data.frame_bmp, i) == 0)
         {
@@ -78,5 +85,5 @@ uptr mmu_frame_next()
         }
     }
 
-    return NULL;
+    return 0;
 }

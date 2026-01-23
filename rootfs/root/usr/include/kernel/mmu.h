@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #define PAGE_SIZE (1<<12)
-static inline HUGE_PAGE_SIZE();
+usize HUGE_PAGE_SIZE();
 
 #define HUGE_PAGE_SIZE_NO_PAE (1<<22)
 #define HUGE_PAGE_SIZE_PAE (1<<21)
@@ -32,37 +32,39 @@ typedef struct
 
 typedef enum
 {
-    MMU_PA_FLAG_PRESENT = (1ULL<<0), // Present
-    MMU_PA_FLAG_RW = (1ULL<<1), // Read-write
-    MMU_PA_FLAG_US = (1ULL<<2), // User-super
-    MMU_PA_FLAG_PWT = (1ULL<<3), // Write-through
-    MMU_PA_FLAG_PCD = (1ULL<<4), // Uncacheable
-    MMU_PA_FLAG_ACCESSED = (1ULL<<5), // Accessed indicator
-    MMU_PA_FLAG_GLOBAL = (1ULL<<6), // No invalidate
-    MMU_PA_FLAG_PSE = (1ULL<<7), // Huge page
-    MMU_PA_FLAG_PAT = (1ULL<<12), // Page attribute table
-    MMU_PA_FLAG_NX = (1ULL<<63), // Execute disable
+    MMU_PG_ATTR_PRESENT = (1ULL<<0), // Present
+    MMU_PG_ATTR_RW = (1ULL<<1), // Read-write
+    MMU_PG_ATTR_US = (1ULL<<2), // User-super
+    MMU_PG_ATTR_PWT = (1ULL<<3), // Write-through
+    MMU_PG_ATTR_PCD = (1ULL<<4), // Uncacheable
+    MMU_PG_ATTR_ACCESSED = (1ULL<<5), // Accessed indicator
+    MMU_PG_ATTR_GLOBAL = (1ULL<<6), // No invalidate
+    MMU_PG_ATTR_PSE = (1ULL<<7), // Huge page
+    MMU_PG_ATTR_PAT = (1ULL<<12), // Page attribute table
+    MMU_PG_ATTR_NX = (1ULL<<63), // Execute disable
 } mmu_page_attributes_t;
 
 typedef enum
 {
-    MMU_MAP_ID_ENABLE = (1<<0),
-    MMU_HUGE_PAGE = (1<<1),
-    MMU_VERY_HUGE_PAGE= (1<<2),
+    MMU_FLAG_MAP_ID = (1<<0),
+    MMU_FLAG_HUGE_PAGE = (1<<1),
+    MMU_FLAG_VERY_HUGE_PAGE= (1<<2),
 } mmu_flags_t;
 
 typedef uptr vaddr_t;
 typedef u64 paddr_t;
 
-#define mmu_byte_to_4k_pages(_n) (((_n) >> 12)+((_n)&((1<<12)-1)))
-#define mmu_byte_to_4m_pages(_n) (((_n) >> 22)+((_n)&((1<<22)-1)))
-#define mmu_byte_to_2m_pages(_n) (((_n) >> 21)+((_n)&((1<<21)-1)))
-#define mmu_byte_to_1g_pages(_n) (((_n) >> 30)+((_n)&((1<<30)-1)))
+#define mmu_byte_to_4k_pages(_n) (((_n)+((1<<12)-1)) >> 12)
+#define mmu_byte_to_4m_pages(_n) (((_n)+((1<<22)-1)) >> 22)
+#define mmu_byte_to_2m_pages(_n) (((_n)+((1<<21)-1)) >> 21)
+#define mmu_byte_to_1g_pages(_n) (((_n)+((1<<30)-1)) >> 30)
 
-static inline paddr_t mmu_vtop(vaddr_t vaddr);
-static inline vaddr_t mmu_ptov(paddr_t paddr);
+paddr_t mmu_vtop(vaddr_t vaddr);
+vaddr_t mmu_ptov(paddr_t paddr);
 
-void mmu_init(memory_info_t* mem_map);
+int mmu_init(uptr start_addr, memory_info_t* mem_map);
+void mmu_load_address_space(paddr_t paddr);
+void mmu_enable_features();
 void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes);
 void mmu_mmapn(paddr_t addr, usize n, u64 attributes, int flags);
 void mmu_mmap_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);

@@ -65,6 +65,16 @@ void __attribute__((cdecl)) start(u16 bootDrive,
     if (status < 0) goto end;
 
     kdebugf(DEBUG_INFO, MODULE_MAIN, "BOOT_OK\n");
+    kdebugf(DEBUG_INFO, MODULE_MAIN, "Kernel will start on ");
+    int count = 3;
+    while (count)
+    {
+        kprintf("%d...", count);
+        sleep(1000);
+        count--;
+    }
+    kprintf("Go!\n");
+    kernel_init(&boot_info);
 end:    
     for (;;);
 }

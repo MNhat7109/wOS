@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-void mmu_frame_init(uptr start_addr, usize mem_size);
+void mmu_frame_init(u8* bmp_buffer_addr, u64 mem_size);
 
 void mmu_frame_set(uptr address);
 void mmu_frame_reserve(uptr address);

@@ -30,7 +30,6 @@ typedef struct memory_info_t
 } __attribute__((packed)) memory_info_t;
 
 typedef struct system_desc_ptr_t system_desc_ptr_t;
-// TODO
 
 typedef struct boot_info_t
 {

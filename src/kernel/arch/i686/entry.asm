@@ -67,13 +67,12 @@ id_start:
     or eax, (1<<31) | (1<<16)
     mov cr0, eax ; Enable paging
 
-
     jmp 0x08:post_paging_setup
 
 ;;;;
 ;;;; From this part onwards, every variable in
 ;;;; the .data, .bss, and .rodata area are in higher half.
-;;;; To get their physical address, subtract it by 0xC0000000.
+;;;; To get their physical addresses, subtract it by 0xC0000000.
 
 section .text align=4096
 

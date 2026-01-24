@@ -10,9 +10,9 @@ static const char* str_debugmode[] = {
 
 void kdebugf(int mode, const char* module, const char* fmt, ...)
 {
-    kprintf("'%s' [%s]: ", str_debugmode[mode], module);
+    printf("'%s' [%s]: ", str_debugmode[mode], module);
     va_list args;
     va_start(args, fmt);
-    kvprintf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 }

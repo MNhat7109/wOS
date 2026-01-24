@@ -41,8 +41,8 @@ static struct
     // TODO: every component's status
 } kernel_data;
 
-void stdio_register_kputc(void (*kputc_op)(char ch));
-void stdio_register_kputs(void (*kputs_op)(const char* str));
+void stdio_register_putc(void (*putc_op)(char ch));
+void stdio_register_puts(void (*puts_op)(const char* str));
 
 void debug_console_init();
 void debug_console_putch(char ch);
@@ -152,8 +152,8 @@ void kstart(boot_info_t* boot_inf)
     debug_console_write("Kernel: If you can see this message on serial, early logging is working\n");
 
     // Register stdio ops
-    stdio_register_kputc(debug_console_putch);
-    stdio_register_kputs(debug_console_write);
+    stdio_register_putc(debug_console_putch);
+    stdio_register_puts(debug_console_write);
 
     kdebugf(DEBUG_INFO, "KMAIN", "Leveled logs arrived\n");
     

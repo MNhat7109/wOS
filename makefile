@@ -10,7 +10,8 @@ IMG_SIZE=262144      # in 512-byte sectors
 PART1_LABEL=BOOT
 PART2_LABEL=ROOT
 
-QEMU_FLAGS=-d int -machine q35 \
+QEMU_FLAGS=-d int -display gtk,zoom-to-fit=on \
+	-machine q35 \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \
 	-drive id=disk,file=$(IMG_PATH),format=raw,if=none \

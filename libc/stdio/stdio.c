@@ -32,41 +32,41 @@ void printf_unsigned(unsigned long long number, int radix)
         number /= radix;
     } while (number > 0);
 
-    while (--i >= 0) kputc(bufferOut[i]);
+    while (--i >= 0) putchar(bufferOut[i]);
 }
 
 void printf_signed(long long number, int radix)
 {
     if (number < 0) 
     {
-        kputc('-');
+        putchar('-');
         printf_unsigned(-number, radix);
     }
     else printf_unsigned(number, radix);
 }
 
-void (*kputc)(char ch) = NULL;
-void (*kputs)(const char* str) = NULL;
+void (*putchar)(char ch) = NULL;
+void (*puts)(const char* str) = NULL;
 
-void stdio_register_kputc(void (*kputc_op)(char ch))
+void stdio_register_putc(void (*putc_op)(char ch))
 {
-    kputc = kputc_op;
+    putchar = putc_op;
 }
 
-void stdio_register_kputs(void (*kputs_op)(const char* str))
+void stdio_register_puts(void (*puts_op)(const char* str))
 {
-    kputs = kputs_op;
+    puts = puts_op;
 }
 
-void kprintf(const char* fmt, ...)
+void printf(const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    kvprintf(fmt, args);
+    vprintf(fmt, args);
     va_end(args);
 }
 
-void kvprintf(const char* fmt, va_list args)
+void vprintf(const char* fmt, va_list args)
 {
     int current_state = PRINTF_STATE_NORMAL;
     int length = PRINTF_LENGTH_NORMAL, radix = 10;
@@ -83,7 +83,7 @@ void kvprintf(const char* fmt, va_list args)
                 current_state = PRINTF_STATE_LENGTH;
                 break;
             default:
-                kputc(*fmt);
+                putchar(*fmt);
                 break;
             }
             break;
@@ -134,13 +134,13 @@ void kvprintf(const char* fmt, va_list args)
             switch (*fmt)
             {
             case '%':
-                kputc('%');
+                putchar('%');
                 break;
             case 'c':
-                kputc((char)va_arg(args, int));
+                putchar((char)va_arg(args, int));
                 break;
             case 's':
-                kputs(va_arg(args, const char*));
+                puts(va_arg(args, const char*));
                 break;
             case 'X':
             case 'p':

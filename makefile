@@ -10,7 +10,8 @@ IMG_SIZE=262144      # in 512-byte sectors
 PART1_LABEL=BOOT
 PART2_LABEL=ROOT
 
-QEMU_FLAGS=-d int -display gtk,zoom-to-fit=on \
+QEMU_FLAGS=-d int \
+	-cpu max \
 	-machine q35 \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \

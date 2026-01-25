@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <kernel/arch/i686/cpuid.h>
 #include <kernel/mmu.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
@@ -32,6 +33,13 @@ typedef struct boot_info_t
     memory_info_t* mem_map;
 } boot_info_t;
 
+typedef enum
+{
+    PARAM_PAE_ON = (1<<0),
+    PARAM_NX_ON = (1<<1),
+    PARAM_PSE_ON = (1<<2),
+} optional_param_t;
+
 static struct
 {
     u8 kmemlock_done;
@@ -48,7 +56,7 @@ void debug_console_init();
 void debug_console_putch(char ch);
 void debug_console_write(const char* str);
 
-void mmu_arch_init(uptr first_free_page);
+void mmu_arch_init(uptr first_free_page, u32 optional_features);
 
 int kmemlock(memory_info_t* mem_info)
 {
@@ -82,7 +90,8 @@ int kmemmap()
     kdebugf(DEBUG_INFO, "MMU", "First free page at: 0x%x\n", first_free_page);
 
     // Init arch function to do arch-specific things
-    mmu_arch_init(first_free_page);
+    u32 additional = PARAM_PSE_ON; // PAE: 0, NX: 0, PSE: 1
+    mmu_arch_init(first_free_page, additional); // Init paging with additional features
         
     
     usize kernel_page_count = mmu_byte_to_4k_pages(kernel_data.kernel_size);
@@ -156,6 +165,8 @@ void kstart(boot_info_t* boot_inf)
     stdio_register_puts(debug_console_write);
 
     kdebugf(DEBUG_INFO, "KMAIN", "Leveled logs arrived\n");
+
+    cpuid_check();
     
     int status;
     status = kmemlock(boot_inf->mem_map);

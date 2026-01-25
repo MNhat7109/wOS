@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
 enum printf_STATES
 {
     PRINTF_STATE_NORMAL,

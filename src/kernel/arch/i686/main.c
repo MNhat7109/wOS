@@ -165,6 +165,7 @@ void kstart(boot_info_t* boot_inf)
     stdio_register_puts(debug_console_write);
 
     kdebugf(DEBUG_INFO, "KMAIN", "Leveled logs arrived\n");
+    kdebugf(DEBUG_INFO, "KMAIN", "Boot info addr: 0x%x\n", boot_inf);
 
     cpuid_check();
     

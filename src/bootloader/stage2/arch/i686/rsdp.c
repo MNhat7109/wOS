@@ -101,7 +101,7 @@ bool rsdp_scan(system_desc_ptr_t** address)
     }
     return false;
 success:
-    kdebugf(DEBUG_INFO, "ACPI","ACPI version: %d, RSDP/XSDP: 0x%x\n",
+    kdebugf(DEBUG_INFO, "ACPI","ACPI version: %d, RSDP/XSDP: 0x%llx\n",
         sys_struct.type, sys_struct.address);
     *address = &sys_struct;
     return true;

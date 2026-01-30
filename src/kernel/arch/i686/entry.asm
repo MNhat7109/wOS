@@ -80,8 +80,41 @@ post_paging_setup:
     ; Stack setup
     mov esp, __stack_end
 
+    ; Save params passed by bootloader
+    mov ecx, 32
+    mov edi, fb_block
+    mov esi, [boot_info_ptr+0x0]
+    rep movsb
+
+    mov ecx, 8
+    mov edi, font_block
+    mov esi, [boot_info_ptr+0x4]
+    rep movsb
+
+    mov ecx, 16
+    mov edi, sdp_block
+    mov esi, [boot_info_ptr+0x8]
+    rep movsb
+
+    mov ecx, 4096
+    mov edi, glyph_buffer
+    mov esi, [font_block+0x4]
+    rep movsb
+
+    mov dword [boot_info_block+0x0], fb_block
+    mov dword [boot_info_block+0x4], font_block
+    mov dword [boot_info_block+0x8], sdp_block
+
+    mov eax, [boot_info_ptr+0xC]
+    mov dword [boot_info_block+0xC], eax
+
+    mov eax, [boot_info_ptr+0x10]
+    mov dword [boot_info_block+0x10], eax
+
+    mov dword [font_block+0x4], glyph_buffer
+
     ; Load previously saved params
-    mov esi, [boot_info_ptr]
+    mov esi, [boot_info_block]
 
     ; Pass the info for the kernel to do its thing
     push esi
@@ -98,3 +131,8 @@ f4m_pt: resd 1024 ; First 4M
 section .data align=4096
 
 boot_info_ptr: dd 0
+glyph_buffer: times 4096 db 0
+boot_info_block: times 20 db 0
+fb_block: times 32 db 0
+font_block: times 8 db 0
+sdp_block: times 16 db 0

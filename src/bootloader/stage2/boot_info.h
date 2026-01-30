@@ -37,4 +37,5 @@ typedef struct boot_info_t
     system_desc_ptr_t* sdp;
     font_t* font_out;
     memory_info_t* mem_map;
+    u32 optional_params;
 } boot_info_t;

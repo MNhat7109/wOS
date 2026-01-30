@@ -24,7 +24,7 @@ typedef struct
     u32 acpi;
 } __attribute__((packed)) memory_region_t;
 
-typedef struct
+typedef struct memory_info_t
 {
     u32 entries_count;
     memory_region_t regions[];

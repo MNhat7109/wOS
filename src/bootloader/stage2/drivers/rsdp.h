@@ -5,7 +5,8 @@
 typedef struct system_desc_ptr_t
 {
     int type;
-    u32 address;
+    u32 _reserved;
+    u64 address;
 } __attribute__((packed)) system_desc_ptr_t;
 
 bool rsdp_scan(system_desc_ptr_t** address_out);

@@ -2,6 +2,7 @@
 #include <kernel/mmu_frame.h>
 #include <kernel/video.h>
 #include <stdint.h>
+#include <kernel/arch/i686/io.h>
 
 volatile char* vram = (volatile char*)0xB8000;
 u32 vga_height = 80, vga_width = 25;
@@ -76,7 +77,12 @@ void vga_scroll(u32 lines)
 
 void vga_set_cursor(u32 x, u32 y)
 {
-
+    u32 pos = y*vga_width+x;
+    outb(0x3D4, 0x0F); // Write to register 0x0F to set the highest 8 bits of cursor location.
+    // Set the data on port 0x3D5
+    outb(0x3D5, ((pos&0xF)>>8));
+    outb(0x3D4, 0x10); // Same thing for lower 8 bits
+    outb(0x3D5, (pos>>8));
 }
 
 u8 vga_getcolor(u32 x, u32 y)

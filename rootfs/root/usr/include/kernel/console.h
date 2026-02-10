@@ -45,6 +45,8 @@ typedef struct console_line_t
     u16 len;
 } console_line_t;
 
+typedef struct console_t console_t;
+
 typedef struct console_t
 {
     u32 number;

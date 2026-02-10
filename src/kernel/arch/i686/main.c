@@ -3,6 +3,7 @@
 #include <kernel/mmu.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
+#include <kernel/arch/i686/gdt.h>
 #include <kernel/debug.h>
 
 #define MODULE_KRNL "KMAIN"
@@ -31,6 +32,7 @@ typedef struct boot_info_t
     system_desc_ptr_t* sdp;
     font_t* font_out;
     memory_info_t* mem_map;
+    u32 optional_params;
 } boot_info_t;
 
 typedef enum
@@ -42,11 +44,8 @@ typedef enum
 
 static struct
 {
-    u8 kmemlock_done;
-    u8 kmemmap_done;
     usize kernel_size;
     usize kernel_phys;
-    // TODO: every component's status
 } kernel_data;
 
 void stdio_register_putc(void (*putc_op)(char ch));
@@ -60,11 +59,10 @@ void mmu_arch_init(uptr first_free_page, u32 optional_features);
 
 int kmemlock(memory_info_t* mem_info)
 {
-    if (kernel_data.kmemlock_done) goto done;
     int status;
     
     usize offset = ((usize)&__start)-((usize)&__low_start);
-    kdebugf(DEBUG_INFO, "KMAIN", "End: 0x%x, offset=0x%x\n", &__end, offset);
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "End: 0x%x, offset=0x%x\n", &__end, offset);
     status = mmu_init(((uptr)&__end), mem_info);
     if (status < 0) return status;
 
@@ -76,14 +74,11 @@ int kmemlock(memory_info_t* mem_info)
     kernel_data.kernel_phys = mmu_vtop((vaddr_t)&__start);
     mmu_frame_reserve_n((uptr)kernel_data.kernel_phys, kernel_page_count);
 
-done:
     return 0;
 }
 
 int kmemmap()
 {
-    if (kernel_data.kmemmap_done) goto done;
-
     // Request one page to store page directories on
     uptr first_free_page = mmu_frame_next();
 
@@ -112,17 +107,11 @@ int kmemmap()
 
     // Now after everything has been mapped, wait for other components to initialize and
     // and map its region, then we can enable paging
-    kernel_data.kmemmap_done = 1;
-done:
     return 0;
 }
 
 void kmemstart()
 {
-    u8 ok = 1;
-    ok = ok && kernel_data.kmemmap_done;
-
-    if (!ok) goto done;
     mmu_enable_features();
 
     u64 mem_size = mmu_get_total_size();
@@ -149,9 +138,64 @@ void kmemstart()
         other,
         kernel_data.kernel_size
     );
+}
 
-done:
-    return;
+void kgdtstart()
+{
+    // Initialize GDT, with NULL descriptor
+    gdt_init();
+
+    // Create segments for kernel and userspace
+
+    gdt_set_entry(
+        1, 
+        0, 
+        0xFFFFF,
+        (GDT_ACCESS_PVL_KRNL | 
+        GDT_ACCESS_CODE_DATA_SEG |
+        GDT_ACCESS_EXECUTABLE |
+        GDT_ACCESS_READ_WRITE),
+        (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
+    ); // kernel code segment
+
+    gdt_set_entry(
+        2, 
+        0, 
+        0xFFFFF,
+        (GDT_ACCESS_PVL_KRNL | 
+        GDT_ACCESS_CODE_DATA_SEG |
+        GDT_ACCESS_READ_WRITE),
+        (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
+    ); // kernel data segment
+
+    gdt_set_entry(
+        3, 
+        0, 
+        0xFFFFF,
+        (GDT_ACCESS_PVL_USER | 
+        GDT_ACCESS_CODE_DATA_SEG |
+        GDT_ACCESS_EXECUTABLE |
+        GDT_ACCESS_READ_WRITE),
+        (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
+    ); // user code segment
+
+    gdt_set_entry(
+        4, 
+        0, 
+        0xFFFFF,
+        (GDT_ACCESS_PVL_USER | 
+        GDT_ACCESS_CODE_DATA_SEG |
+        GDT_ACCESS_READ_WRITE),
+        (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
+    ); // user data segment
+
+    for (int i=1;i<5;i++) gdt_mark_present(i);
+
+    // Load the populated GDT to the CPU, and reload the segments.
+    gdt_load_table();
+    gdt_reload_segs(KERNEL_CODE_SEG, KERNEL_DATA_SEG);
+
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "GDT installed\n");
 }
 
 void kstart(boot_info_t* boot_inf)
@@ -164,8 +208,8 @@ void kstart(boot_info_t* boot_inf)
     stdio_register_putc(debug_console_putch);
     stdio_register_puts(debug_console_write);
 
-    kdebugf(DEBUG_INFO, "KMAIN", "Leveled logs arrived\n");
-    kdebugf(DEBUG_INFO, "KMAIN", "Boot info addr: 0x%x\n", boot_inf);
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "Leveled logs arrived\n");
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "Boot info addr: 0x%x\n", boot_inf);
 
     cpuid_check();
     
@@ -177,11 +221,7 @@ void kstart(boot_info_t* boot_inf)
     if (status < 0) goto end;
 
     kmemstart();
-    
-    // if (!boot_prepare(boot_inf))
-    // {
-    //     goto end;
-    // }
+    kgdtstart();
 
     // boot_prepare_acpi();
 

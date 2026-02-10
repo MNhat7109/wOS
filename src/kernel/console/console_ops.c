@@ -1,6 +1,6 @@
 #include <kernel/console.h>
 
-void console_writechar(console_t* console, char ch);
+void console_writechar(console_t* console, char ch){}
 
 void console_scroll(console_t* console, int lines)
 {

@@ -53,7 +53,7 @@ int lfb_init(framebuffer_t* fb, font_t* font)
     usize fb_base_page_count = mmu_byte_to_4k_pages(fb->size);
     mmu_mmapn(fb->base, fb_base_page_count, MMU_PG_ATTR_PCD | MMU_PG_ATTR_RW, MMU_FLAG_MAP_ID);
 
-    fb_base = (u32*)fb->base;
+    fb_base = (volatile u8*)fb->base;
     fb_height = fb->height;
     fb_width = fb->width;
     fb_pitch = fb->pitch;

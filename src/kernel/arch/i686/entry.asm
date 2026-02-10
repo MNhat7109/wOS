@@ -32,7 +32,7 @@ id_start:
     mov esi, [esp+4] ; We save the bootloader struct to a safe place
     mov [(boot_info_ptr-0xC0000000)], esi
 
-    ; Higher half map from 0x100000 -> 0xC0000000
+    ; Higher half map from 0x0 -> 0xC0000000
     ; Also, for a smoother transition without the kernel
     ; foaming of page faults, we should ID-map the kernel
     ; then once we got to the higher-half, we can just
@@ -80,20 +80,21 @@ post_paging_setup:
     ; Stack setup
     mov esp, __stack_end
 
+    mov ebx, [boot_info_ptr]
     ; Save params passed by bootloader
     mov ecx, 32
     mov edi, fb_block
-    mov esi, [boot_info_ptr+0x0]
+    mov esi, [ebx+0x0]
     rep movsb
 
     mov ecx, 8
     mov edi, font_block
-    mov esi, [boot_info_ptr+0x4]
+    mov esi, [ebx+0x8]
     rep movsb
 
     mov ecx, 16
     mov edi, sdp_block
-    mov esi, [boot_info_ptr+0x8]
+    mov esi, [ebx+0x4]
     rep movsb
 
     mov ecx, 4096
@@ -105,16 +106,16 @@ post_paging_setup:
     mov dword [boot_info_block+0x4], font_block
     mov dword [boot_info_block+0x8], sdp_block
 
-    mov eax, [boot_info_ptr+0xC]
+    mov eax, [ebx+0xC]
     mov dword [boot_info_block+0xC], eax
 
-    mov eax, [boot_info_ptr+0x10]
+    mov eax, [ebx+0x10]
     mov dword [boot_info_block+0x10], eax
 
     mov dword [font_block+0x4], glyph_buffer
 
     ; Load previously saved params
-    mov esi, [boot_info_block]
+    mov esi, boot_info_block
 
     ; Pass the info for the kernel to do its thing
     push esi
@@ -124,6 +125,8 @@ post_paging_setup:
 
 section .bss align=4096
 
+glyph_buffer: resb 4096
+
 align 4096
 page_dir: resd 1024
 f4m_pt: resd 1024 ; First 4M
@@ -131,7 +134,6 @@ f4m_pt: resd 1024 ; First 4M
 section .data align=4096
 
 boot_info_ptr: dd 0
-glyph_buffer: times 4096 db 0
 boot_info_block: times 20 db 0
 fb_block: times 32 db 0
 font_block: times 8 db 0

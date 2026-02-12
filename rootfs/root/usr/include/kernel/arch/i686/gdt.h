@@ -6,7 +6,6 @@
 #define USER_CODE_SEG   0x18
 #define USER_DATA_SEG   0x20
 
-#define GDT_ACCESS_PRESENT (1<<7)
 #define GDT_ACCESS_PVL_KRNL (0b00<<5)
 #define GDT_ACCESS_PVL_USER (0b11<<5)
 #define GDT_ACCESS_CODE_DATA_SEG (1<<4)
@@ -22,18 +21,8 @@
 #define GDT_FLAG_PAGE_GRAN (1<<3)
 #define GDT_FLAG_SIZE      (1<<2)
 
-typedef struct gdt_entry_i386_t
-{
-    u16 limit_low;
-    u16 base_low;
-    u8  base_mid;
-    u8  access;
-    u8  limit_flags;
-    u8  base_hi;
-} __attribute__((packed)) gdt_entry_i386_t;
-
 void __attribute__((packed)) gdt_load_table();
 void __attribute__((packed)) gdt_reload_segs(u16 cs, u16 ds);
-void gdt_init();
-void gdt_set_entry(u32 index, u32 base, u32 limit, u8 access, u8 flags);
+
+void gdt_create_entry(u32 index, u32 base, u32 limit, u8 access, u8 flags);
 void gdt_mark_present(u32 index);

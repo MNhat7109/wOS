@@ -4,6 +4,8 @@
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/arch/i686/gdt.h>
+#include <kernel/arch/i686/idt.h>
+#include <kernel/arch/i686/isr.h>
 #include <kernel/debug.h>
 
 #define MODULE_KRNL "KMAIN"
@@ -142,12 +144,12 @@ void kmemstart()
 
 void kgdtstart()
 {
-    // Initialize GDT, with NULL descriptor
-    gdt_init();
+    // Create NULL descriptor
+    gdt_create_entry(0, 0,0,0,0);
 
     // Create segments for kernel and userspace
 
-    gdt_set_entry(
+    gdt_create_entry(
         1, 
         0, 
         0xFFFFF,
@@ -158,7 +160,7 @@ void kgdtstart()
         (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
     ); // kernel code segment
 
-    gdt_set_entry(
+    gdt_create_entry(
         2, 
         0, 
         0xFFFFF,
@@ -168,7 +170,7 @@ void kgdtstart()
         (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
     ); // kernel data segment
 
-    gdt_set_entry(
+    gdt_create_entry(
         3, 
         0, 
         0xFFFFF,
@@ -179,7 +181,7 @@ void kgdtstart()
         (GDT_FLAG_PAGE_GRAN | GDT_FLAG_SIZE)
     ); // user code segment
 
-    gdt_set_entry(
+    gdt_create_entry(
         4, 
         0, 
         0xFFFFF,
@@ -196,6 +198,16 @@ void kgdtstart()
     gdt_reload_segs(KERNEL_CODE_SEG, KERNEL_DATA_SEG);
 
     kdebugf(DEBUG_INFO, MODULE_KRNL, "GDT installed\n");
+}
+
+void kintstart()
+{
+    idt_load_table();
+
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "IDT installed\n");
+
+    isr_init();
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "ISR installed\n");
 }
 
 void kstart(boot_info_t* boot_inf)
@@ -222,12 +234,11 @@ void kstart(boot_info_t* boot_inf)
 
     kmemstart();
     kgdtstart();
+    kintstart();
 
     // boot_prepare_acpi();
 
     // peripherals_init();
-
-    // HAL_init_essentials();
     
     // // Set up timer for sleep()
     // ktime_init();

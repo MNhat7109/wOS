@@ -57,32 +57,24 @@ void debug_console_init();
 void debug_console_putch(char ch);
 void debug_console_write(const char* str);
 
+void mmu_frame_bmp_load_ops();
 void mmu_arch_init(uptr first_free_page, u32 optional_features);
 
-int kmemlock(memory_info_t* mem_info)
+void kmemlock()
 {
-    int status;
-    
-    usize offset = ((usize)&__start)-((usize)&__low_start);
-    kdebugf(DEBUG_INFO, MODULE_KRNL, "End: 0x%x, offset=0x%x\n", &__end, offset);
-    status = mmu_init(((uptr)&__end), mem_info);
-    if (status < 0) return status;
-
     // Lock necessary components so that it won't page fault when 
     // enabling paging for a second time
     
     kernel_data.kernel_size = ((usize)&__end) - ((usize)&__start);
     usize kernel_page_count = mmu_byte_to_4k_pages(kernel_data.kernel_size);
     kernel_data.kernel_phys = mmu_vtop((vaddr_t)&__start);
-    mmu_frame_reserve_n((uptr)kernel_data.kernel_phys, kernel_page_count);
-
-    return 0;
+    mmu_frame_set_n((uptr)kernel_data.kernel_phys, kernel_page_count);
 }
 
-int kmemmap()
+void kmemmap()
 {
     // Request one page to store page directories on
-    uptr first_free_page = mmu_frame_next();
+    uptr first_free_page = mmu_frame_alloc->alloc();
 
     kdebugf(DEBUG_INFO, "MMU", "First free page at: 0x%x\n", first_free_page);
 
@@ -109,7 +101,6 @@ int kmemmap()
 
     // Now after everything has been mapped, wait for other components to initialize and
     // and map its region, then we can enable paging
-    return 0;
 }
 
 void kmemstart()
@@ -224,17 +215,23 @@ void kstart(boot_info_t* boot_inf)
     kdebugf(DEBUG_INFO, MODULE_KRNL, "Boot info addr: 0x%x\n", boot_inf);
 
     cpuid_check();
+
+    mmu_frame_bmp_load_ops();
     
     int status;
-    status = kmemlock(boot_inf->mem_map);
+
+    usize offset = ((usize)&__start)-((usize)&__low_start);
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "End: 0x%x, offset=0x%x\n", &__end, offset);
+    
+    status = mmu_init(((uptr)&__end), boot_inf->mem_map);
     if (status < 0) goto end;
 
-    status = kmemmap();
-    if (status < 0) goto end;
-
-    kmemstart();
+    kmemlock();
+    kmemmap();
+    
     kgdtstart();
     kintstart();
+    kmemstart();
 
     // boot_prepare_acpi();
 

@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <kernel/mmu_frame.h>
 
 #define PAGE_SIZE (1<<12)
 usize HUGE_PAGE_SIZE();
@@ -53,6 +54,8 @@ typedef enum
 
 typedef uptr vaddr_t;
 typedef u64 paddr_t;
+
+extern mmu_frame_allocator_t* mmu_frame_alloc;
 
 #define mmu_byte_to_4k_pages(_n) (((_n)+((1<<12)-1)) >> 12)
 #define mmu_byte_to_4m_pages(_n) (((_n)+((1<<22)-1)) >> 22)

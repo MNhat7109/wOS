@@ -1,7 +1,16 @@
 #include <kernel/mmu.h>
 #include <kernel/mmu_frame.h>
+#include <kernel/mmu_frame_bmp.h>
 #include <kernel/mmu_other.h>
 #include <kernel/debug.h>
+
+mmu_frame_allocator_t* mmu_frame_alloc;
+
+static struct
+{
+    mmu_frame_bmp_allocator_t* bmp_alloc;
+
+} mmu_data;
 
 void mmu_reserve_low_memory();
 
@@ -49,8 +58,10 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
     mmu_recompute_total_size();
 
     // Init frame allocator
-    mmu_frame_init((u8*)start_addr, mmu_get_total_size());
-    
+    mmu_frame_load_allocator(mmu_frame_alloc, mmu_frame_bmp_load_ops);
+    mmu_frame_alloc->init(mmu_frame_alloc, (u8*)start_addr, mmu_get_total_size());
+    mmu_data.bmp_alloc = (mmu_frame_bmp_allocator_t*)mmu_frame_alloc;
+
     // Lock low memory
     mmu_reserve_low_memory();
     return 0;
@@ -60,9 +71,9 @@ void mmu_reserve_low_memory()
 {
     // 0 - 0x4FF: IVT + BDA
     usize ivt_bda_pages = mmu_byte_to_4k_pages(0x500-0);
-    mmu_frame_reserve_n(0, ivt_bda_pages);
+    mmu_data.bmp_alloc->reserve_pages(0, ivt_bda_pages);
 
     // 0x80000 - 0xA0000: EBDA
     usize ebda_pages = mmu_byte_to_4k_pages(0xA0000-0x80000);
-    mmu_frame_reserve_n(0x80000, ebda_pages);
+    mmu_data.bmp_alloc->reserve_pages(0x80000, ebda_pages);
 }

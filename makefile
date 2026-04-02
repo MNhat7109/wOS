@@ -10,14 +10,14 @@ IMG_SIZE=262144      # in 512-byte sectors
 PART1_LABEL=BOOT
 PART2_LABEL=ROOT
 
-QEMU_FLAGS=-d int \
+QEMU_FLAGS= -d int \
 	-cpu max \
 	-machine q35 \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \
 	-drive id=disk,file=$(IMG_PATH),format=raw,if=none \
 	-device ide-hd,drive=disk,bus=ide.0
-QEMU_TEST_FLAGS=-monitor stdio -display none -serial file:$(LOG_PATH)
+QEMU_TEST_FLAGS=-d int -monitor stdio -display none -serial file:$(LOG_PATH)
 
 .PHONY: clean run
 
@@ -68,14 +68,11 @@ unmount1:
 # -------------------------
 # Mount partition 2 and copy root files
 # -------------------------
-mount2: $(IMG_PATH) $(BOOT_BUILD_DIR)/stage2/stage2.bin $(KERNEL_BUILD_DIR)/kernel.elf
+mount2: $(IMG_PATH) $(KERNEL_BUILD_DIR)/kernel.elf
 	@echo "Mounting partition 2..."
 	$(DUTIL) mount $< $(MNT) --part 2
 	sudo cp -r $(BASE_DIR)/root/ $(MNT)/
 	sudo mkdir -p $(MNT)/boot
-	sudo cp -r $(BASE_DIR)/boot/ $(MNT)/boot/
-	sudo cp -r $(word 2, $^) $(MNT)/boot/boot.bin
-	sudo cp -r $(word 3, $^) $(MNT)/boot/
 
 unmount2:
 	@echo "Unmounting partition 2..."

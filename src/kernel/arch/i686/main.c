@@ -48,6 +48,7 @@ static struct
 {
     usize kernel_size;
     usize kernel_phys;
+	mmu_frame_bmp_allocator_t* kernel_bmp_alloc;
 } kernel_data;
 
 void stdio_register_putc(void (*putc_op)(char ch));
@@ -68,13 +69,13 @@ void kmemlock()
     kernel_data.kernel_size = ((usize)&__end) - ((usize)&__start);
     usize kernel_page_count = mmu_byte_to_4k_pages(kernel_data.kernel_size);
     kernel_data.kernel_phys = mmu_vtop((vaddr_t)&__start);
-    mmu_frame_set_n((uptr)kernel_data.kernel_phys, kernel_page_count);
+    kernel_data.kernel_bmp_alloc->lock_pages((uptr)kernel_data.kernel_phys, kernel_page_count);
 }
 
 void kmemmap()
 {
     // Request one page to store page directories on
-    uptr first_free_page = mmu_frame_alloc->alloc();
+    uptr first_free_page = kernel_bmp_alloc->alloc();
 
     kdebugf(DEBUG_INFO, "MMU", "First free page at: 0x%x\n", first_free_page);
 
@@ -215,16 +216,15 @@ void kstart(boot_info_t* boot_inf)
     kdebugf(DEBUG_INFO, MODULE_KRNL, "Boot info addr: 0x%x\n", boot_inf);
 
     cpuid_check();
-
-    mmu_frame_bmp_load_ops();
     
-    int status;
-
+	int status;
     usize offset = ((usize)&__start)-((usize)&__low_start);
     kdebugf(DEBUG_INFO, MODULE_KRNL, "End: 0x%x, offset=0x%x\n", &__end, offset);
     
     status = mmu_init(((uptr)&__end), boot_inf->mem_map);
     if (status < 0) goto end;
+
+	kernel_data.kernel_bmp_alloc = (mmu_frame_bmp_allocator_t*)mmu_frame_alloc;
 
     kmemlock();
     kmemmap();

@@ -20,7 +20,6 @@ void mmu_mmap_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
 {
     // The page directory is an array of 1024 entries
     // Each of these entries is one complete page table
-
     // Similarly, each of the page tables consists of 1024 entries
     // Each of these entries is one complete page
 
@@ -48,7 +47,7 @@ void mmu_mmap_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
     {
         // Page table does not exist, so allocate a frame, and populate the entry.
 
-        uptr phys_frame = mmu_frame_request(PAGE_SIZE);
+        uptr phys_frame = mmu_frame_alloc.alloc(mmu_frame_alloc, PAGE_SIZE);
         page_table = (u32*)mmu_ptov((paddr_t)phys_frame);
         memset(page_table, 0, PAGE_SIZE);
         

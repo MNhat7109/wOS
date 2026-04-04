@@ -43,7 +43,6 @@ void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_t* frame);
 void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame);
 u32 mmu_frame_plog2(u64 x);
 
-
 mmu_frame_allocator_t alloc_buddy = 
 {
     .alloc = &mmu_frame_buddy_alloc,
@@ -246,4 +245,9 @@ void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame)
 
         pp = &(*pp)->next;
     }
+}
+
+const mmu_frame_allocator_t* mmu_frame_buddy_load_ops()
+{
+	return &alloc_buddy;
 }

@@ -12,7 +12,7 @@ static struct
 } mmu_frame_bmp_data;
 
 void mmu_frame_bmp_init(mmu_frame_allocator_t* m_alloc, u8* bmp_buffer_addr, u64 mem_size);
-void mmu_frame_bmp_alloc(mmu_frame_allocator_t* m_alloc, u64 block_size);
+uptr mmu_frame_bmp_alloc(mmu_frame_allocator_t* m_alloc, u64 block_size);
 void mmu_frame_bmp_free(mmu_frame_allocator_t* m_alloc, uptr address);
 
 void mmu_frame_bmp_set(uptr address);
@@ -53,6 +53,26 @@ void mmu_frame_bmp_init(mmu_frame_allocator_t* m_alloc, u8* bmp_buffer_addr, u64
     mmu_frame_bmp_set_n((uptr)mmu_vtop((vaddr_t)bmp_buffer_addr), page_count);
 
     m_alloc->mem_state = &mmu_frame_bmp_data.frame_bmp;
+}
+
+uptr mmu_frame_bmp_alloc(mmu_frame_allocator_t* m_alloc, u64 block_size)
+{
+	usize page_count = mmu_byte_to_4k_pages(block_size);
+	for (int i=0;i<mmu_frame_bmp_data.frame_bmp.bit_count;i++)
+	{
+		if (bitmap_get(&mmu_frame_bmp_data.frame_bmp, i) == 0)
+		{
+			uptr addr - i << 12;
+			mmu_frame_bmp_set_n(addr, page_count);
+			return addr;
+		}
+	}
+	return 0;
+}
+
+void mmu_frame_bmp_free(mmu_frame_allocator_t* m_alloc, uptr address)
+{
+	
 }
 
 void mmu_frame_bmp_set(uptr address)

@@ -5,7 +5,10 @@ DIR=$(abspath ../toolchains)
 TC_TARGET=$(TARGET)-elf # Previously, TARGET holds only the arch (e.g. i686, x86_64, etc.). Add "-elf" so that everything won't break
 PREFIX=$(DIR)/$(TC_TARGET)
 
-.PHONY: run
+.PHONY: path run
+path: 
+	export "PATH=$(PREFIX)/bin:$$PATH"
+
 run: $(PREFIX)/bin/$(TC_TARGET)-ld $(PREFIX)/bin/$(TC_TARGET)-gcc
 
 $(PREFIX)/bin/$(TC_TARGET)-ld: binutils

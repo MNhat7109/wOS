@@ -1,10 +1,15 @@
 #include <kernel/mmu_frame.h>
 
-void mmu_frame_load_allocator(mmu_frame_allocator_t* m_alloc, const mmu_frame_allocator_t* (*alloc_cb)())
-{
-    if (!m_alloc) return;
-    if (!alloc_cb) return;
+mmu_frame_allocator_t default_alloc;
 
-    m_alloc = alloc_cb();
+void mmu_frame_load_allocator(mmu_frame_allocator_t** m_alloc)
+{
+    *m_alloc = &default_alloc;
 }
 
+void mmu_frame_load_ops(mmu_frame_allocator_t* m_alloc, const mmu_frame_allocator_ops_t* (*alloc_cb)())
+{
+    if (!alloc_cb) return;
+
+    (m_alloc)->ops = alloc_cb();
+}

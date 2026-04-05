@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <kernel/mmu_frame.h>
 
+#define MODULE_MMU "MMU"
+
 #define PAGE_SIZE (1<<12)
 usize HUGE_PAGE_SIZE();
 
@@ -57,6 +59,10 @@ typedef u64 paddr_t;
 
 extern mmu_frame_allocator_t* mmu_frame_alloc;
 
+#define mmu_align_down(_x, _a) ((_x) & ~((_a) - 1))
+#define mmu_align_up(_x, _a)   (((_x) + (_a) - 1) & ~((_a) - 1))
+#define mmu_is_aligned(_x, _a) (((_x) & ((_a) - 1)) == 0)
+
 #define mmu_byte_to_4k_pages(_n) (((_n)+((1<<12)-1)) >> 12)
 #define mmu_byte_to_4m_pages(_n) (((_n)+((1<<22)-1)) >> 22)
 #define mmu_byte_to_2m_pages(_n) (((_n)+((1<<21)-1)) >> 21)
@@ -66,6 +72,8 @@ paddr_t mmu_vtop(vaddr_t vaddr);
 vaddr_t mmu_ptov(paddr_t paddr);
 
 int mmu_init(uptr start_addr, memory_info_t* mem_map);
+void mmu_init_stage2();
+
 void mmu_load_address_space(paddr_t paddr);
 void mmu_enable_features();
 void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes);

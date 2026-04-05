@@ -36,6 +36,8 @@ uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 size);
 void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr);
 
 void mmu_frame_buddy_register_chunk(u32 pfn, u32 order);
+void mmu_frame_buddy_split_to_4m(u32 start_pfn, u32 len);
+void mmu_frame_buddy_merge(mmu_frame_t* chunk);
 void mmu_frame_buddy_split(mmu_frame_t* chunk, u32 desired_order);
 
 void mmu_frame_buddy_pop_from_free_list(u32 order);
@@ -43,7 +45,7 @@ void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_t* frame);
 void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame);
 u32 mmu_frame_plog2(u64 x);
 
-mmu_frame_allocator_t alloc_buddy = 
+mmu_frame_allocator_ops_t alloc_buddy = 
 {
     .alloc = &mmu_frame_buddy_alloc,
     .free = &mmu_frame_buddy_free,
@@ -52,11 +54,22 @@ mmu_frame_allocator_t alloc_buddy =
 
 void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 mem_size)
 {
+    //TODO: Add aligned check
     mmu_frame_buddy_data.frame_data = (mmu_frame_t*)start_addr;
     mmu_frame_buddy_data.total_pages = (mem_size) / (PAGE_SIZE);
 
+    usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_t)*mmu_frame_buddy_data.total_pages);
     bitmap_t* bmp = m_alloc->mem_state;
 
+    // Reserve spaces for the metadata
+    u32 buddy_meta_pfn = (uptr)start_addr >> 12;
+    for (u32 p=0;p<meta_page_count;p++)
+    {
+        bitmap_set(bmp, buddy_meta_pfn+p);
+    }
+
+    // Consolidate the current memory state from address 0x0
+    // This needs to be done, in order to get a good free list of buddy chunks, in various orders from 0 to 10.
     u32 current_pfn = 0;
     while (current_pfn < mmu_frame_buddy_data.total_pages)
     {
@@ -233,7 +246,7 @@ void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame)
     if (!frame) return;
     if (order > MAX_ORDER) return;
 
-    mmu_frame_t** pp = mmu_frame_buddy_data.free_list[order];
+    mmu_frame_t** pp = &mmu_frame_buddy_data.free_list[order];
 
     while (pp)
     {
@@ -247,7 +260,7 @@ void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame)
     }
 }
 
-const mmu_frame_allocator_t* mmu_frame_buddy_load_ops()
+const mmu_frame_allocator_ops_t* mmu_frame_buddy_load_ops()
 {
 	return &alloc_buddy;
 }

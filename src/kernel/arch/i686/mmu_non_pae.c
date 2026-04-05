@@ -47,7 +47,7 @@ void mmu_mmap_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
     {
         // Page table does not exist, so allocate a frame, and populate the entry.
 
-        uptr phys_frame = mmu_frame_alloc.alloc(mmu_frame_alloc, PAGE_SIZE);
+        uptr phys_frame = mmu_frame_alloc->ops->alloc(mmu_frame_alloc, PAGE_SIZE);
         page_table = (u32*)mmu_ptov((paddr_t)phys_frame);
         memset(page_table, 0, PAGE_SIZE);
         

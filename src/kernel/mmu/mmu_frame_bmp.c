@@ -24,7 +24,7 @@ void mmu_frame_bmp_reserve_n(uptr address, usize n);
 void mmu_frame_bmp_clear_n(uptr address, usize n);
 uptr mmu_frame_bmp_next(u64 size);
 
-mmu_frame_bmp_allocator_t alloc_bmp = {
+mmu_frame_bmp_allocator_ops_t alloc_bmp = {
     .hdr = {
         .alloc = &mmu_frame_bmp_alloc,
         .free = &mmu_frame_bmp_free,
@@ -62,7 +62,7 @@ uptr mmu_frame_bmp_alloc(mmu_frame_allocator_t* m_alloc, u64 block_size)
 	{
 		if (bitmap_get(&mmu_frame_bmp_data.frame_bmp, i) == 0)
 		{
-			uptr addr - i << 12;
+			uptr addr = i << 12;
 			mmu_frame_bmp_set_n(addr, page_count);
 			return addr;
 		}
@@ -133,7 +133,7 @@ u32 mmu_frame_bmp_next_bit()
     return 0;
 }
 
-const mmu_frame_allocator_t* mmu_frame_bmp_load_ops()
+const mmu_frame_allocator_ops_t* mmu_frame_bmp_load_ops()
 {
-    return (mmu_frame_allocator_t*)&alloc_bmp;
+    return (mmu_frame_allocator_ops_t*)&alloc_bmp;
 }

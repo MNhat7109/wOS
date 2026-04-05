@@ -5,18 +5,19 @@
 #include <kernel/debug.h>
 
 mmu_frame_allocator_t* mmu_frame_alloc;
-
 static struct
 {
-    mmu_frame_bmp_allocator_t* bmp_alloc;
-
+    uptr mmu_start_addr;
 } mmu_data;
 
-void mmu_reserve_low_memory();
+
+const mmu_frame_allocator_ops_t* mmu_frame_buddy_load_ops();
 
 int mmu_init(uptr start_addr, memory_info_t* mem_map)
 {
     if (!mem_map) return -1;
+
+    mmu_data.mmu_start_addr = start_addr;
 
     // Make use of mem_map for basic memory size, and size of each category (used, free, etc.)
     u64 memory_end=0;
@@ -26,7 +27,7 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
         int desired_zone_type;
         if (memory_end < region->base)
         {
-            kdebugf(DEBUG_INFO, "MMU", "Added hole size %llu\n", region->base-memory_end);
+            kdebugf(DEBUG_INFO, MODULE_MMU, "Added hole size %llu\n", region->base-memory_end);
             desired_zone_type = MMU_ZONE_HOLE;
             mmu_inc_zone_size(desired_zone_type, region->base-memory_end);
         }
@@ -49,7 +50,7 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
                 break;
         }
 
-        kdebugf(DEBUG_INFO, "MMU", "Region start=0x%llx, len=%llu\n", region->base, region->length);
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Region start=0x%llx, len=%llu\n", region->base, region->length);
 
         mmu_inc_zone_size(desired_zone_type, region->length);
         memory_end=region->base+region->length;
@@ -58,22 +59,16 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
     mmu_recompute_total_size();
 
     // Init frame allocator
-    mmu_frame_load_allocator(mmu_frame_alloc, mmu_frame_bmp_load_ops);
-    mmu_frame_alloc->init(mmu_frame_alloc, (u8*)start_addr, mmu_get_total_size());
-    mmu_data.bmp_alloc = (mmu_frame_bmp_allocator_t*)mmu_frame_alloc;
-
-    // Lock low memory
-    mmu_reserve_low_memory();
+    mmu_frame_load_allocator(&mmu_frame_alloc);
+    mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_bmp_load_ops);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "%x\n", mmu_frame_alloc);
+    mmu_frame_alloc->ops->init(mmu_frame_alloc, (u8*)start_addr, mmu_get_total_size());
     return 0;
 }
 
-void mmu_reserve_low_memory()
+void mmu_init_stage2()
 {
-    // 0 - 0x4FF: IVT + BDA
-    usize ivt_bda_pages = mmu_byte_to_4k_pages(0x500-0);
-    mmu_data.bmp_alloc->reserve_pages(0, ivt_bda_pages);
-
-    // 0x80000 - 0xA0000: EBDA
-    usize ebda_pages = mmu_byte_to_4k_pages(0xA0000-0x80000);
-    mmu_data.bmp_alloc->reserve_pages(0x80000, ebda_pages);
+    mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_buddy_load_ops);
+    u8* start_addr_of_buddy = (u8*)mmu_align_up(mmu_data.mmu_start_addr+mmu_frame_alloc->mem_state->size, PAGE_SIZE);
+    mmu_frame_alloc->ops->init(mmu_frame_alloc, start_addr_of_buddy, mmu_get_total_size());
 }

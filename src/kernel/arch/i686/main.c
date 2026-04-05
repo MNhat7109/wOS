@@ -3,6 +3,7 @@
 #include <kernel/mmu.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
+#include <kernel/mmu_frame_bmp.h>
 #include <kernel/arch/i686/gdt.h>
 #include <kernel/arch/i686/idt.h>
 #include <kernel/arch/i686/isr.h>
@@ -48,7 +49,7 @@ static struct
 {
     usize kernel_size;
     usize kernel_phys;
-	mmu_frame_bmp_allocator_t* kernel_bmp_alloc;
+	mmu_frame_bmp_allocator_ops_t* kernel_bmp_alloc;
 } kernel_data;
 
 void stdio_register_putc(void (*putc_op)(char ch));
@@ -58,14 +59,23 @@ void debug_console_init();
 void debug_console_putch(char ch);
 void debug_console_write(const char* str);
 
-void mmu_frame_bmp_load_ops();
 void mmu_arch_init(uptr first_free_page, u32 optional_features);
 
 void kmemlock()
 {
     // Lock necessary components so that it won't page fault when 
     // enabling paging for a second time
-    
+
+    // Lock firmware-reserved areas
+    // 0 - 0x4FF: IVT + BDA
+    usize ivt_bda_pages = mmu_byte_to_4k_pages(0x500-0);
+    kernel_data.kernel_bmp_alloc->reserve_pages(0, ivt_bda_pages);
+
+    // 0x80000 - 0xA0000: EBDA
+    usize ebda_pages = mmu_byte_to_4k_pages(0xA0000-0x80000);
+    kernel_data.kernel_bmp_alloc->reserve_pages(0x80000, ebda_pages);
+
+    // Lock da kernel
     kernel_data.kernel_size = ((usize)&__end) - ((usize)&__start);
     usize kernel_page_count = mmu_byte_to_4k_pages(kernel_data.kernel_size);
     kernel_data.kernel_phys = mmu_vtop((vaddr_t)&__start);
@@ -75,7 +85,7 @@ void kmemlock()
 void kmemmap()
 {
     // Request one page to store page directories on
-    uptr first_free_page = kernel_bmp_alloc->alloc();
+    uptr first_free_page = mmu_frame_alloc->ops->alloc(mmu_frame_alloc, PAGE_SIZE);
 
     kdebugf(DEBUG_INFO, "MMU", "First free page at: 0x%x\n", first_free_page);
 
@@ -202,6 +212,11 @@ void kintstart()
     kdebugf(DEBUG_INFO, MODULE_KRNL, "ISR installed\n");
 }
 
+void kmemevolve()
+{
+    mmu_init_stage2();
+}
+
 void kstart(boot_info_t* boot_inf)
 {
     debug_console_init();
@@ -224,7 +239,7 @@ void kstart(boot_info_t* boot_inf)
     status = mmu_init(((uptr)&__end), boot_inf->mem_map);
     if (status < 0) goto end;
 
-	kernel_data.kernel_bmp_alloc = (mmu_frame_bmp_allocator_t*)mmu_frame_alloc;
+	kernel_data.kernel_bmp_alloc = (mmu_frame_bmp_allocator_ops_t*)mmu_frame_alloc->ops;
 
     kmemlock();
     kmemmap();
@@ -232,6 +247,7 @@ void kstart(boot_info_t* boot_inf)
     kgdtstart();
     kintstart();
     kmemstart();
+    //kmemevolve();
 
     // boot_prepare_acpi();
 

@@ -43,29 +43,29 @@ void* font_glyph;
 
 int lfb_init(framebuffer_t* fb, font_t* font)
 {
-    if (!fb || !font) return -1;
+    // if (!fb || !font) return -1;
 
-    paddr_t font_phys = mmu_vtop((vaddr_t)font->glyph);
-    usize glyph_pages = mmu_byte_to_4k_pages(font->glyph_count*font->width);
-    mmu_frame_set_n(font_phys, glyph_pages);
-    mmu_mmapn(font_phys, glyph_pages, 0, 0);
+    // paddr_t font_phys = mmu_vtop((vaddr_t)font->glyph);
+    // usize glyph_pages = mmu_byte_to_4k_pages(font->glyph_count*font->width);
+    // mmu_frame_alloc->(font_phys, glyph_pages);
+    // mmu_mmapn(font_phys, glyph_pages, 0, 0);
 
-    usize fb_base_page_count = mmu_byte_to_4k_pages(fb->size);
-    mmu_mmapn(fb->base, fb_base_page_count, MMU_PG_ATTR_PCD | MMU_PG_ATTR_RW, MMU_FLAG_MAP_ID);
+    // usize fb_base_page_count = mmu_byte_to_4k_pages(fb->size);
+    // mmu_mmapn(fb->base, fb_base_page_count, MMU_PG_ATTR_PCD | MMU_PG_ATTR_RW, MMU_FLAG_MAP_ID);
 
-    fb_base = (volatile u8*)fb->base;
-    fb_height = fb->height;
-    fb_width = fb->width;
-    fb_pitch = fb->pitch;
-    fb_bpp = fb->bpp;
-    fb_bytes_per_pix = fb_bpp >> 3;
+    // fb_base = (volatile u8*)fb->base;
+    // fb_height = fb->height;
+    // fb_width = fb->width;
+    // fb_pitch = fb->pitch;
+    // fb_bpp = fb->bpp;
+    // fb_bytes_per_pix = fb_bpp >> 3;
 
-    font_height = font->height;
-    font_width = font->width;
-    font_glyph_count = font->glyph_count;
-    font_glyph = font->glyph;
+    // font_height = font->height;
+    // font_width = font->width;
+    // font_glyph_count = font->glyph_count;
+    // font_glyph = font->glyph;
 
-    video_backend = &lfb_backend;
+    // video_backend = &lfb_backend;
     return 0;
 }
 

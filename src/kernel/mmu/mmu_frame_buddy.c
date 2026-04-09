@@ -1,6 +1,7 @@
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu.h>
 #include <bitmap.h>
+#include <kernel/debug.h>
 
 #define MAX_ORDER 10
 
@@ -55,6 +56,8 @@ mmu_frame_allocator_ops_t alloc_buddy =
 void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 mem_size)
 {
 	if (!mmu_is_aligned((uptr)start_addr, PAGE_SIZE)) return; 
+
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", start_addr);
     
 	mmu_frame_buddy_data.frame_data = (mmu_frame_t*)start_addr;
     mmu_frame_buddy_data.total_pages = (mem_size) / (PAGE_SIZE);
@@ -62,12 +65,16 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
     usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_t)*mmu_frame_buddy_data.total_pages);
     bitmap_t* bmp = m_alloc->mem_state;
 
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Bmp addr: 0x%x\n", bmp->buffer);
+
     // Reserve spaces for the metadata
     u32 buddy_meta_pfn = (uptr)start_addr >> 12;
     for (u32 p=0;p<meta_page_count;p++)
     {
         bitmap_set(bmp, buddy_meta_pfn+p);
     }
+    
+    return;
 
     // Consolidate the current memory state from address 0x0
     // This needs to be done, in order to get a good free list of buddy chunks, in various orders from 0 to 10.

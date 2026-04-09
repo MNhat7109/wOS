@@ -37,7 +37,7 @@ mmu_frame_bmp_allocator_ops_t alloc_bmp = {
 
 void mmu_frame_bmp_init(mmu_frame_allocator_t* m_alloc, u8* bmp_buffer_addr, u64 mem_size)
 {
-    kdebugf(DEBUG_INFO, "MMU", "Bitmap buffer addr: 0x%x\n", bmp_buffer_addr);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Bitmap buffer addr: 0x%x\n", bmp_buffer_addr);
 
     // Get total memory page count
     usize total_pages = mmu_byte_to_4k_pages(mem_size);
@@ -49,7 +49,7 @@ void mmu_frame_bmp_init(mmu_frame_allocator_t* m_alloc, u8* bmp_buffer_addr, u64
     usize bmp_size = mmu_frame_bmp_data.frame_bmp.size;
     usize page_count = mmu_byte_to_4k_pages(bmp_size);
 
-    kdebugf(DEBUG_INFO, "MMU", "Bitmap size: %u\n", bmp_size);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Bitmap size: %u\n", bmp_size);
     mmu_frame_bmp_set_n((uptr)mmu_vtop((vaddr_t)bmp_buffer_addr), page_count);
 
     m_alloc->mem_state = &mmu_frame_bmp_data.frame_bmp;

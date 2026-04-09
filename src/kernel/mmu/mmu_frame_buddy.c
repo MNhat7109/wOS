@@ -69,12 +69,7 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
 
     // Reserve spaces for the metadata
     u32 buddy_meta_pfn = (uptr)start_addr >> 12;
-    for (u32 p=0;p<meta_page_count;p++)
-    {
-        bitmap_set(bmp, buddy_meta_pfn+p);
-    }
-    
-    return;
+    mmu_frame_buddy_reserve_range(buddy_meta_pfn, meta_page_count);
 
     // Consolidate the current memory state from address 0x0
     // This needs to be done, in order to get a good free list of buddy chunks, in various orders from 0 to 10.
@@ -83,7 +78,8 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
     {
         if (bitmap_get(bmp, current_pfn) != 0)
         {
-            mmu_frame_buddy_data.frame_data[current_pfn].frame_attr.reserved = 1;
+            //mmu_frame_buddy_data.frame_data[current_pfn].frame_attr.reserved = 1;
+            mmu_reserve_frame(current_pfn);
             current_pfn++;
             continue;
         }

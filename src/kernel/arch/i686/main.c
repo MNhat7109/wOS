@@ -247,7 +247,7 @@ void kstart(boot_info_t* boot_inf)
     kgdtstart();
     kintstart();
     kmemstart();
-    //kmemevolve();
+    kmemevolve();
 
     // boot_prepare_acpi();
 

@@ -68,7 +68,7 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
 
 void mmu_init_stage2()
 {
-    mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_buddy_load_ops);
     u8* start_addr_of_buddy = (u8*)mmu_align_up(mmu_data.mmu_start_addr+mmu_frame_alloc->mem_state->size, PAGE_SIZE);
+    mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_buddy_load_ops);
     mmu_frame_alloc->ops->init(mmu_frame_alloc, start_addr_of_buddy, mmu_get_total_size());
 }

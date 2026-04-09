@@ -54,8 +54,9 @@ mmu_frame_allocator_ops_t alloc_buddy =
 
 void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 mem_size)
 {
-    //TODO: Add aligned check
-    mmu_frame_buddy_data.frame_data = (mmu_frame_t*)start_addr;
+	if (!mmu_is_aligned((uptr)start_addr, PAGE_SIZE)) return; 
+    
+	mmu_frame_buddy_data.frame_data = (mmu_frame_t*)start_addr;
     mmu_frame_buddy_data.total_pages = (mem_size) / (PAGE_SIZE);
 
     usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_t)*mmu_frame_buddy_data.total_pages);

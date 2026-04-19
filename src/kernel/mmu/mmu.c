@@ -1,6 +1,7 @@
 #include <kernel/mmu.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_frame_bmp.h>
+#include <kernel/mmu_frame_buddy.h>
 #include <kernel/mmu_other.h>
 #include <kernel/debug.h>
 
@@ -19,44 +20,7 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
 
     mmu_data.mmu_start_addr = start_addr;
 
-    // Make use of mem_map for basic memory size, and size of each category (used, free, etc.)
-    u64 memory_end=0;
-    for (u32 i=0;i<mem_map->entries_count;i++)
-    {
-        memory_region_t* region = &mem_map->regions[i];
-        int desired_zone_type;
-        if (memory_end < region->base)
-        {
-            kdebugf(DEBUG_INFO, MODULE_MMU, "Added hole size %llu\n", region->base-memory_end);
-            desired_zone_type = MMU_ZONE_HOLE;
-            mmu_inc_zone_size(desired_zone_type, region->base-memory_end);
-        }
-
-        switch (region->type)
-        {
-            case MEMORY_TYPE_FREE:
-                desired_zone_type = MMU_ZONE_FREE;
-                break;
-            case MEMORY_TYPE_RESERVED:
-            case MEMORY_TYPE_ACPI:
-            case MEMORY_TYPE_ACPI_NVS:
-                desired_zone_type = MMU_ZONE_HW_RESERVED;
-                break;
-            case MEMORY_TYPE_BAD:
-                desired_zone_type = MMU_ZONE_BAD;
-                break;
-            default:
-                desired_zone_type = MMU_ZONE_OTHER;
-                break;
-        }
-
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Region start=0x%llx, len=%llu\n", region->base, region->length);
-
-        mmu_inc_zone_size(desired_zone_type, region->length);
-        memory_end=region->base+region->length;
-    }
-
-    mmu_recompute_total_size();
+    mmu_recompute_mem_size(mem_map);
 
     // Init frame allocator
     mmu_frame_load_allocator(&mmu_frame_alloc);
@@ -69,6 +33,17 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
 void mmu_init_stage2()
 {
     u8* start_addr_of_buddy = (u8*)mmu_align_up(mmu_data.mmu_start_addr+mmu_frame_alloc->mem_state->size, PAGE_SIZE);
+    paddr_t start_addr_of_buddy_phys = mmu_vtop((vaddr_t)start_addr_of_buddy);
+    u64 total_size = mmu_get_total_size();
+    usize total_page_count = mmu_byte_to_4k_pages(total_size);
+    usize buddy_page_count = mmu_byte_to_4k_pages(total_page_count*sizeof(mmu_frame_buddy_t));
+
+    kdebugf(DEBUG_INFO, MODULE_MMU, "%u\n", buddy_page_count);
+    ((mmu_frame_bmp_allocator_ops_t*)mmu_frame_alloc->ops)->lock_pages(start_addr_of_buddy_phys, buddy_page_count);
+    return;
+    
+    mmu_mmapn(start_addr_of_buddy_phys, buddy_page_count, MMU_PG_ATTR_RW, 0);
+
     mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_buddy_load_ops);
     mmu_frame_alloc->ops->init(mmu_frame_alloc, start_addr_of_buddy, mmu_get_total_size());
 }

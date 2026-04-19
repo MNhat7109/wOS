@@ -98,6 +98,7 @@ void mmu_frame_bmp_clear(uptr address)
 
 void mmu_frame_bmp_set_n(uptr address, usize n)
 {
+    kdebugf(DEBUG_INFO, MODULE_MMU, "%x\n", address);
     for (usize i=0;i<n;i++)
     {
         mmu_frame_bmp_set(address+i*4096);

@@ -1,6 +1,8 @@
 #pragma once
 #include <stdint.h>
 
+typedef struct memory_info_t memory_info_t;
+
 typedef enum
 {
     MMU_ZONE_FREE,
@@ -17,4 +19,4 @@ void mmu_inc_zone_size(int zone_type, usize value);
 void mmu_dec_zone_size(int zone_type, usize value);
 
 u64 mmu_get_total_size();
-void mmu_recompute_total_size();
+void mmu_recompute_mem_size(memory_info_t* mem_map);

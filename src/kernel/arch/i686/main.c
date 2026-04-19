@@ -128,7 +128,7 @@ void kmemstart()
     kdebugf(DEBUG_INFO, MODULE_KRNL, "MMU initialized successfully\n");
     kdebugf(DEBUG_INFO, MODULE_KRNL, "Additional info:\n"
         "\tMMU components located at 0x%x\n"
-        "\tTotal addressable memory: %llu bytes\n"
+        "\tPhysical memory span: %llu bytes\n"
         "\tUsable memory: %llu bytes\n"
         "\tBIOS-reserved memory: %llu bytes\n"
         "\tHole: %llu bytes\n"

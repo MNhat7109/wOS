@@ -1,4 +1,5 @@
 #include <kernel/mmu_frame.h>
+#include <kernel/mmu_frame_buddy.h>
 #include <kernel/mmu.h>
 #include <bitmap.h>
 #include <kernel/debug.h>
@@ -9,27 +10,11 @@
 #define MMU_BUDDY_ZONE_NORMAL 1
 #define MMU_BUDDY_ZONE_HIMEM 2
 
-typedef struct mmu_frame_t mmu_frame_t;
-
-typedef struct mmu_frame_attr_t
-{
-    u8 reserved : 1;
-    u8 is_free : 1;
-    u8 zone : 2;
-    u8 order: 4;
-} __attribute__((packed)) mmu_frame_attr_t;
-
-typedef struct mmu_frame_t
-{
-    mmu_frame_attr_t frame_attr;
-    mmu_frame_t* next;
-} mmu_frame_t;
-
 static struct
 {
     u64 total_pages;
-    mmu_frame_t* frame_data;
-    mmu_frame_t* free_list[MAX_ORDER+1];
+    mmu_frame_buddy_t* frame_data;
+    mmu_frame_buddy_t* free_list[MAX_ORDER+1];
 } mmu_frame_buddy_data;
 
 void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 mem_size);
@@ -38,12 +23,14 @@ void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr);
 
 void mmu_frame_buddy_register_chunk(u32 pfn, u32 order);
 void mmu_frame_buddy_split_to_4m(u32 start_pfn, u32 len);
-void mmu_frame_buddy_merge(mmu_frame_t* chunk);
-void mmu_frame_buddy_split(mmu_frame_t* chunk, u32 desired_order);
+void mmu_frame_buddy_reserve(u32 pfn);
+void mmu_frame_buddy_reserve_range(u32 pfn, u32 count);
+void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk);
+void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order);
 
 void mmu_frame_buddy_pop_from_free_list(u32 order);
-void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_t* frame);
-void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame);
+void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_buddy_t* frame);
+void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_buddy_t* frame);
 u32 mmu_frame_plog2(u64 x);
 
 mmu_frame_allocator_ops_t alloc_buddy = 
@@ -59,17 +46,19 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
 
     kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", start_addr);
     
-	mmu_frame_buddy_data.frame_data = (mmu_frame_t*)start_addr;
+	mmu_frame_buddy_data.frame_data = (mmu_frame_buddy_t*)start_addr;
     mmu_frame_buddy_data.total_pages = (mem_size) / (PAGE_SIZE);
 
-    usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_t)*mmu_frame_buddy_data.total_pages);
+    usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_buddy_t)*mmu_frame_buddy_data.total_pages);
     bitmap_t* bmp = m_alloc->mem_state;
 
     kdebugf(DEBUG_INFO, MODULE_MMU, "Bmp addr: 0x%x\n", bmp->buffer);
 
+    return;
     // Reserve spaces for the metadata
     u32 buddy_meta_pfn = (uptr)start_addr >> 12;
     mmu_frame_buddy_reserve_range(buddy_meta_pfn, meta_page_count);
+
 
     // Consolidate the current memory state from address 0x0
     // This needs to be done, in order to get a good free list of buddy chunks, in various orders from 0 to 10.
@@ -79,7 +68,7 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
         if (bitmap_get(bmp, current_pfn) != 0)
         {
             //mmu_frame_buddy_data.frame_data[current_pfn].frame_attr.reserved = 1;
-            mmu_reserve_frame(current_pfn);
+            mmu_frame_buddy_reserve(current_pfn);
             current_pfn++;
             continue;
         }
@@ -99,7 +88,7 @@ uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)
     u32 desired_order = mmu_frame_plog2(page_count)+1;
     u32 order_found = desired_order;
     u32 pfn_offset = 0;
-    mmu_frame_t* head_at_order;
+    mmu_frame_buddy_t* head_at_order;
 
     while (order_found <= MAX_ORDER)
     {
@@ -128,7 +117,7 @@ void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr)
 {
     usize frame_no = frame_addr >> 12;
 
-    mmu_frame_t* frame_ptr = &mmu_frame_buddy_data.frame_data[frame_no];
+    mmu_frame_buddy_t* frame_ptr = &mmu_frame_buddy_data.frame_data[frame_no];
 
     if (frame_ptr->frame_attr.reserved) return;
     if (frame_ptr->frame_attr.is_free) return;
@@ -148,7 +137,7 @@ u32 mmu_frame_plog2(u64 x)
     return shift;
 }
 
-void mmu_frame_buddy_split(mmu_frame_t* chunk, u32 desired_order)
+void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order)
 {
     if (!chunk) return;
     if (!chunk->frame_attr.is_free) return;
@@ -161,7 +150,7 @@ void mmu_frame_buddy_split(mmu_frame_t* chunk, u32 desired_order)
     }
 }
 
-void mmu_frame_buddy_merge(mmu_frame_t* chunk)
+void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk)
 {
     if (!chunk) return;
     if (!chunk->frame_attr.is_free) return;
@@ -171,7 +160,7 @@ void mmu_frame_buddy_merge(mmu_frame_t* chunk)
     while (chunk->frame_attr.order < MAX_ORDER)
     {
         u32 peer_chunk_pfn = chunk_pfn ^ (1<<chunk->frame_attr.order);
-        mmu_frame_t* peer_chunk = &mmu_frame_buddy_data.frame_data[peer_chunk_pfn];
+        mmu_frame_buddy_t* peer_chunk = &mmu_frame_buddy_data.frame_data[peer_chunk_pfn];
 
         if (peer_chunk->frame_attr.reserved) break;
         if (!peer_chunk->frame_attr.is_free) break;
@@ -202,11 +191,22 @@ void mmu_frame_buddy_split_to_4m(u32 start_pfn, u32 len)
     }
 }
 
+void mmu_frame_buddy_reserve(u32 pfn)
+{
+    mmu_frame_buddy_data.frame_data[pfn].frame_attr.reserved = 1;
+}
+
+void mmu_frame_buddy_reserve_range(u32 pfn, u32 count)
+{
+    for (u32 i=0;i<count;i++)
+        mmu_frame_buddy_reserve(pfn+i);
+}
+
 void mmu_frame_buddy_register_chunk(u32 pfn, u32 order)
 {
     if (pfn >= mmu_frame_buddy_data.total_pages) return;
 
-    mmu_frame_buddy_data.frame_data[pfn].frame_attr = (mmu_frame_attr_t){
+    mmu_frame_buddy_data.frame_data[pfn].frame_attr = (mmu_frame_buddy_attr_t){
         .is_free = 1,
         .reserved = 0,
         .order = order,
@@ -227,30 +227,30 @@ void mmu_frame_buddy_pop_from_free_list(u32 order)
 {
     if (order > MAX_ORDER) return;
 
-    mmu_frame_t* head = mmu_frame_buddy_data.free_list[order];
+    mmu_frame_buddy_t* head = mmu_frame_buddy_data.free_list[order];
     if (!head) return;
 
     mmu_frame_buddy_data.free_list[order] = head->next;
     head->next = NULL;
 }
 
-void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_t* frame)
+void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_buddy_t* frame)
 {
     if (!frame) return;
     if (order > MAX_ORDER) return;
 
-    mmu_frame_t* head = mmu_frame_buddy_data.free_list[order];
+    mmu_frame_buddy_t* head = mmu_frame_buddy_data.free_list[order];
 
     frame->next = head;
     mmu_frame_buddy_data.free_list[order] = frame;
 }
 
-void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_t* frame)
+void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_buddy_t* frame)
 {
     if (!frame) return;
     if (order > MAX_ORDER) return;
 
-    mmu_frame_t** pp = &mmu_frame_buddy_data.free_list[order];
+    mmu_frame_buddy_t** pp = &mmu_frame_buddy_data.free_list[order];
 
     while (pp)
     {

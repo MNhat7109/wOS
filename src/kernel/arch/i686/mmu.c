@@ -21,11 +21,14 @@ static struct
     mmu_features_t intended;
 } mmu_data;
 
+bool full_paging_on=false;
+
 void mmu_check_features();
 void mmu_init_paging(paddr_t page_dir_addr);
 void mmu_reload_paging_addr();
 
 void __attribute__((cdecl)) mmu_load_address_space_i686(paddr_t paddr);
+void __attribute__((cdecl)) mmu_reload_address_space_i686();
 void __attribute__((cdecl)) mmu_enable_paging();
 void __attribute__((cdecl)) mmu_enable_pse();
 
@@ -73,6 +76,11 @@ void mmu_load_address_space(paddr_t paddr)
     mmu_load_address_space_i686(paddr);
 }
 
+void mmu_reload_address_space()
+{
+    mmu_reload_address_space();
+}
+
 void mmu_enable_features()
 {
     // TODO: This will be changed as PAE is getting added
@@ -84,6 +92,7 @@ void mmu_enable_features()
         mmu_enable_pse();
     
     mmu_enable_paging();
+    full_paging_on = true;
 }
 
 usize HUGE_PAGE_SIZE()

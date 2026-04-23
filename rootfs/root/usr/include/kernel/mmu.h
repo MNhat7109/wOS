@@ -75,6 +75,7 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map);
 void mmu_init_stage2();
 
 void mmu_load_address_space(paddr_t paddr);
+void mmu_reload_address_space();
 void mmu_enable_features();
 void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes);
 void mmu_mmapn(paddr_t addr, usize n, u64 attributes, int flags);

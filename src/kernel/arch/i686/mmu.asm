@@ -2,6 +2,7 @@ bits 32
 
 global mmu_flush_tlb
 global mmu_load_address_space_i686
+global mmu_reload_address_space_i686
 global mmu_enable_paging
 global mmu_enable_pse
 
@@ -43,6 +44,17 @@ mmu_load_address_space_i686:
 
     mov esp, ebp
     pop ebp
+    ret
+
+; /**
+; *
+; * @brief Reload CR3.
+; *
+; * @clobbers eax
+; */
+mmu_reload_address_space_i686:
+    mov eax, cr3
+    mov cr3, eax
     ret
 
 ; /**

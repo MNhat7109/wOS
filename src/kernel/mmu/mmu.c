@@ -38,12 +38,11 @@ void mmu_init_stage2()
     usize total_page_count = mmu_byte_to_4k_pages(total_size);
     usize buddy_page_count = mmu_byte_to_4k_pages(total_page_count*sizeof(mmu_frame_buddy_t));
 
-    kdebugf(DEBUG_INFO, MODULE_MMU, "%u\n", buddy_page_count);
     ((mmu_frame_bmp_allocator_ops_t*)mmu_frame_alloc->ops)->lock_pages(start_addr_of_buddy_phys, buddy_page_count);
-    return;
-    
     mmu_mmapn(start_addr_of_buddy_phys, buddy_page_count, MMU_PG_ATTR_RW, 0);
-
+    
+    
     mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_buddy_load_ops);
     mmu_frame_alloc->ops->init(mmu_frame_alloc, start_addr_of_buddy, mmu_get_total_size());
+    return;
 }

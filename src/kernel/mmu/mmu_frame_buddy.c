@@ -52,12 +52,14 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
     usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_buddy_t)*mmu_frame_buddy_data.total_pages);
     bitmap_t* bmp = m_alloc->mem_state;
 
-    kdebugf(DEBUG_INFO, MODULE_MMU, "Bmp addr: 0x%x\n", bmp->buffer);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Frame addr: 0x%x\n", mmu_frame_buddy_data.frame_data);
 
-    return;
     // Reserve spaces for the metadata
-    u32 buddy_meta_pfn = (uptr)start_addr >> 12;
+    uptr buddy_addr_phys = mmu_vtop((vaddr_t)start_addr);
+    u32 buddy_meta_pfn = buddy_addr_phys >> 12;
+
     mmu_frame_buddy_reserve_range(buddy_meta_pfn, meta_page_count);
+    return;
 
 
     // Consolidate the current memory state from address 0x0

@@ -18,15 +18,15 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
 {
     if (!mem_map) return -1;
 
-    mmu_data.mmu_start_addr = start_addr;
+    mmu_data.mmu_start_addr = mmu_align_up(start_addr, PAGE_SIZE);
 
     mmu_recompute_mem_size(mem_map);
 
     // Init frame allocator
     mmu_frame_load_allocator(&mmu_frame_alloc);
     mmu_frame_load_ops(mmu_frame_alloc, mmu_frame_bmp_load_ops);
-    kdebugf(DEBUG_INFO, MODULE_MMU, "%x\n", mmu_frame_alloc);
-    mmu_frame_alloc->ops->init(mmu_frame_alloc, (u8*)start_addr, mmu_get_total_size());
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Start addr: 0x%x\n", mmu_data.mmu_start_addr);
+    mmu_frame_alloc->ops->init(mmu_frame_alloc, (u8*)mmu_data.mmu_start_addr, mmu_get_total_size());
     return 0;
 }
 

@@ -21,8 +21,9 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
 uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 size);
 void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr);
 
+u32 mmu_frame_buddy_traverse_order(u32 order);
 void mmu_frame_buddy_register_chunk(u32 pfn, u32 order);
-void mmu_frame_buddy_split_to_4m(u32 start_pfn, u32 len);
+void mmu_frame_buddy_split_chunks(u32 start_pfn, u32 len);
 void mmu_frame_buddy_reserve(u32 pfn);
 void mmu_frame_buddy_reserve_range(u32 pfn, u32 count);
 void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk);
@@ -44,13 +45,15 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
 {
 	if (!mmu_is_aligned((uptr)start_addr, PAGE_SIZE)) return; 
 
-    kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", start_addr);
     
 	mmu_frame_buddy_data.frame_data = (mmu_frame_buddy_t*)start_addr;
     mmu_frame_buddy_data.total_pages = (mem_size) / (PAGE_SIZE);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", start_addr);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Total pages: %llu\n", mmu_frame_buddy_data.total_pages);
 
     usize meta_page_count = mmu_byte_to_4k_pages(sizeof(mmu_frame_buddy_t)*mmu_frame_buddy_data.total_pages);
     bitmap_t* bmp = m_alloc->mem_state;
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Bitmap addr: 0x%x\n", bmp->buffer);
 
     kdebugf(DEBUG_INFO, MODULE_MMU, "Frame addr: 0x%x\n", mmu_frame_buddy_data.frame_data);
 
@@ -58,33 +61,54 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
     uptr buddy_addr_phys = mmu_vtop((vaddr_t)start_addr);
     u32 buddy_meta_pfn = buddy_addr_phys >> 12;
 
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Reserving buddy metadata...\n");
     mmu_frame_buddy_reserve_range(buddy_meta_pfn, meta_page_count);
-    return;
-
-
+    
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Consolidating memory...\n");
     // Consolidate the current memory state from address 0x0
-    // This needs to be done, in order to get a good free list of buddy chunks, in various orders from 0 to 10.
-    u32 current_pfn = 0;
+    // This needs to be done, in order to get a good free list of buddy chunks in various orders from 0 to 10.
+    u32 current_pfn = 0, buddy_chunks = 0, round=0;
     while (current_pfn < mmu_frame_buddy_data.total_pages)
     {
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Round %u...\n", round);
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Current PFN at index %u: %u\n", current_pfn, bitmap_get(bmp, current_pfn));
         if (bitmap_get(bmp, current_pfn) != 0)
         {
             //mmu_frame_buddy_data.frame_data[current_pfn].frame_attr.reserved = 1;
             mmu_frame_buddy_reserve(current_pfn);
             current_pfn++;
-            continue;
+            kdebugf(DEBUG_INFO, MODULE_MMU, "Done reserving.\n", round);
+            goto endloop;
         }
-
-        u32 start_free_pfn = current_pfn;
-        while (current_pfn < mmu_frame_buddy_data.total_pages && 
-        bitmap_get(bmp, current_pfn)==0) current_pfn++;
-
-        u32 free_len = current_pfn-start_free_pfn;
         
-        mmu_frame_buddy_split_to_4m(start_free_pfn, free_len);
+        u32 start_free_pfn = current_pfn;
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Splitting....\n", round);
+        while (current_pfn < mmu_frame_buddy_data.total_pages
+            ) 
+            {
+                if (bitmap_get(bmp, current_pfn)!=0) break;
+                //kdebugf(DEBUG_INFO, MODULE_MMU, "Currently at free PFN index %u....\n", current_pfn);
+                current_pfn++;
+            }
+            
+            u32 free_len = current_pfn-start_free_pfn;
+            
+        mmu_frame_buddy_split_chunks(start_free_pfn, free_len);
+endloop:
+        round++;
     }
+    
+    // Summarize total buddy chunks
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Done getting info for buddy metadata. Summary:\n");
+    for (u32 i=0;i<=MAX_ORDER;i++)
+    {
+        u32 order_count = mmu_frame_buddy_traverse_order(i);
+        kdebugf(DEBUG_INFO, MODULE_MMU, "\tblock size=%u pages, count=%u\n", (1<<i), order_count);
+        buddy_chunks+=order_count;
+    }
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Total chunk count: %u\n", buddy_chunks);
 }
-
+    
 uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)
 {
     u32 desired_order = mmu_frame_plog2(page_count)+1;
@@ -174,7 +198,7 @@ void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk)
     mmu_frame_buddy_push_to_free_list(chunk->frame_attr.order, chunk);
 }
 
-void mmu_frame_buddy_split_to_4m(u32 start_pfn, u32 len)
+void mmu_frame_buddy_split_chunks(u32 start_pfn, u32 len)
 {
     u32 current_pfn = start_pfn;
     while (len)
@@ -223,6 +247,19 @@ void mmu_frame_buddy_register_chunk(u32 pfn, u32 order)
     }
 
     mmu_frame_buddy_push_to_free_list(order, &mmu_frame_buddy_data.frame_data[pfn]);
+}
+
+u32 mmu_frame_buddy_traverse_order(u32 order)
+{
+    u32 count=0;
+    if (order > MAX_ORDER) return count;
+    mmu_frame_buddy_t* head = mmu_frame_buddy_data.free_list[order];
+    while (head)
+    {
+        count++;
+        head = head->next;
+    }
+    return count;
 }
 
 void mmu_frame_buddy_pop_from_free_list(u32 order)

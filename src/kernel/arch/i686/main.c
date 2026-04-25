@@ -92,8 +92,11 @@ void kmemmap()
     // Init arch function to do arch-specific things
     u32 additional = PARAM_PSE_ON; // PAE: 0, NX: 0, PSE: 1
     mmu_arch_init(first_free_page, additional); // Init paging with additional features
-        
     
+    // Map the frame bitmap
+    usize bmp_page_count = mmu_byte_to_4k_pages(mmu_frame_alloc->mem_state->size);
+    mmu_mmapn(mmu_vtop((vaddr_t)mmu_frame_alloc->mem_state->buffer), bmp_page_count, MMU_PG_ATTR_RW, 0);
+
     usize kernel_page_count = mmu_byte_to_4k_pages(kernel_data.kernel_size);
 
     // Map everything else in the kernel as RW

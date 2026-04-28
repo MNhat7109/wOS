@@ -13,6 +13,7 @@ PART2_LABEL=ROOT
 QEMU_FLAGS= -d int \
 	-cpu max \
 	-machine q35 \
+	-display gtk,zoom-to-fit=on \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \
 	-drive id=disk,file=$(IMG_PATH),format=raw,if=none \

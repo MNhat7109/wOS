@@ -124,7 +124,6 @@ static struct
     } fsinfo_sector;
 
     u8 fat_cache[FAT_CACHE_SIZE*SECTOR_SIZE];
-    u8 cache_valid;
     u32 fat_cache_pos;
     u32 data_section_lba;
     
@@ -570,33 +569,31 @@ u32 fat_next_cluster(file_t* file_in, u32 current_cluster)
 
     u32 sector_pos = offset/SECTOR_SIZE;
     
-    if (!fat_partition_data.cache_valid ||
+    if (
         sector_pos < fat_partition_data.fat_cache_pos ||
         sector_pos >= fat_partition_data.fat_cache_pos +FAT_CACHE_SIZE)
-        {
-            int status = fat_read_cache(file_in->fs->disk, file_in->fs->partition, sector_pos);
-            if (status < 0) return FAT_CACHE_VALUE_UNKNOWN;
-            fat_partition_data.cache_valid = 1;
-            fat_partition_data.fat_cache_pos=sector_pos;
-        }
-        
-    u32 byte_idx = offset%SECTOR_SIZE;
+    {
+        int status = fat_read_cache(file_in->fs->disk, file_in->fs->partition, sector_pos);
+        if (status < 0) return FAT_CACHE_VALUE_UNKNOWN;
+        fat_partition_data.fat_cache_pos=sector_pos;
+    }
+    
+    offset -= (fat_partition_data.fat_cache_pos*SECTOR_SIZE);
 
     switch (fat_partition_data.fat_version)
     {
         case FAT12:
             value = (current_cluster & 1)?
-            *(u16*)&fat_partition_data.fat_cache[byte_idx] >> 4:
-            *(u16*)&fat_partition_data.fat_cache[byte_idx] & 0x0FFF;
+            (*(u16*)(fat_partition_data.fat_cache+offset)) >> 4:
+            (*(u16*)(fat_partition_data.fat_cache+offset)) & 0x0FFF;
             break;
         case FAT16:
-            value = *(u16*)&fat_partition_data.fat_cache[byte_idx] & 0xFFFF;
+            value = (*(u16*)(fat_partition_data.fat_cache+offset)) & 0xFFFF;
             break;
         case FAT32:
-            value = *(u32*)&fat_partition_data.fat_cache[byte_idx] & 0x0FFFFFFF;
+            value = (*(u32*)(fat_partition_data.fat_cache+offset)) & 0x0FFFFFFF;
             break;
     }
-
     return value;
 }
 

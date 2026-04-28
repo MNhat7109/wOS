@@ -67,8 +67,8 @@ int partition_read(disk_t* disk, partition_t* part, u32 lba, u32 count, void* bu
     
     u32 read_lba_start = part->lba_start+lba;
     
-    kdebugf_silent(DEBUG_INFO, MODULE_DISK, "Reading %u sector(s) from %s%up%u...\n",
-    count, str_media[disk->media_type], disk->pos, part->attributes.pos);
+    kdebugf_silent(DEBUG_INFO, MODULE_DISK, "Reading %u sector(s) from %s%up%u... to 0x%x\n",
+    count, str_media[disk->media_type], disk->pos, part->attributes.pos, buffer);
 
     if (lba >= part->total_sector_count)
     {
@@ -76,7 +76,18 @@ int partition_read(disk_t* disk, partition_t* part, u32 lba, u32 count, void* bu
         return -EINVAL;
     }
 
-    return disk->ops->read(disk, read_lba_start, count, buffer);
+    while (count)
+    {
+        u16 blk = (count < 128)? count:128;
+        int status;
+        if ((status=disk->ops->read(disk, read_lba_start, count, buffer))!=0)
+        {
+            kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Reading disk failed.\n");
+            return -ECMDFAIL;
+        }
+        lba+=blk; count-=blk; buffer=(u8*)buffer+blk*0x200;
+    }
+    return 0;
 }
 
 int partition_write(disk_t* disk, partition_t* part, u32 lba, u32 count, void* buffer)
@@ -99,7 +110,18 @@ int partition_write(disk_t* disk, partition_t* part, u32 lba, u32 count, void* b
         return -EINVAL;
     }
 
-    return disk->ops->write(disk, write_lba_start, count, buffer);
+    while (count)
+    {
+        u16 blk = (count < 128)? count:128;
+        int status;
+        if ((status=disk->ops->write(disk, write_lba_start, count, buffer))!=0)
+        {
+            kdebugf(DEBUG_CRITICAL, MODULE_DISK, "Writing to disk failed.\n");
+            return -ECMDFAIL;
+        }
+        lba+=blk; count-=blk; buffer=(u8*)buffer+blk*0x200;
+    }
+    return 0;
 }
 
 int partition_table_add_entry(disk_t* disk, u32 start_lba, u32 total_sectors, u8 bootable, u8 type, u32 magic)

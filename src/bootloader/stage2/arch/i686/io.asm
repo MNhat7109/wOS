@@ -56,6 +56,8 @@ global i686_insl
 i686_insl:
     push ebp
     mov ebp, esp
+
+    push edi
     ; Save ES register
     push es
     mov ax, [ebp+12]
@@ -67,6 +69,7 @@ i686_insl:
     rep insd
 
     pop es ; Restore ES
+    pop edi
     mov esp, ebp
     pop ebp
     ret
@@ -75,6 +78,8 @@ global i686_outsl
 i686_outsl:
     push ebp
     mov ebp, esp
+
+    push esi
     ; Save DS register
     push ds
     mov ax, [ebp+12]
@@ -86,6 +91,7 @@ i686_outsl:
     rep outsd
 
     pop ds ; Restore DS
+    pop esi
     mov esp, ebp
     pop ebp
     ret
@@ -94,6 +100,8 @@ global i686_insw
 i686_insw:
     push ebp
     mov ebp, esp
+
+    push edi
     ; Save ES register
     push es
     mov ax, [ebp+12]
@@ -105,6 +113,7 @@ i686_insw:
     rep insw
 
     pop es ; Restore ES
+    pop edi
     mov esp, ebp
     pop ebp
     ret
@@ -113,6 +122,7 @@ global i686_outsw
 i686_outsw:
     push ebp
     mov ebp, esp
+    push esi
     ; Save DS register
     push ds
     mov ax, [ebp+12] ; DS is 0x10
@@ -124,6 +134,7 @@ i686_outsw:
     rep outsw
 
     pop ds ; Restore DS
+    pop esi
     mov esp, ebp
     pop ebp
     ret

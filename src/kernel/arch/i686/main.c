@@ -218,6 +218,9 @@ void kintstart()
 void kmemevolve()
 {
     mmu_init_stage2();
+
+    uptr p = mmu_frame_alloc->ops->alloc(mmu_frame_alloc, 2);
+    mmu_frame_alloc->ops->free(mmu_frame_alloc, p);
 }
 
 void kstart(boot_info_t* boot_inf)

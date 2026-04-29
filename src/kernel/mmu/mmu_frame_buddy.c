@@ -32,7 +32,8 @@ void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order);
 void mmu_frame_buddy_pop_from_free_list(u32 order);
 void mmu_frame_buddy_push_to_free_list(u32 order, mmu_frame_buddy_t* frame);
 void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_buddy_t* frame);
-u32 mmu_frame_plog2(u64 x);
+u32 mmu_frame_ceillog2(u64 x);
+u32 mmu_frame_floorlog2(u64 x);
 
 mmu_frame_allocator_ops_t alloc_buddy = 
 {
@@ -74,7 +75,6 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
         kdebugf(DEBUG_INFO, MODULE_MMU, "Current PFN at index %u: %u\n", current_pfn, bitmap_get(bmp, current_pfn));
         if (bitmap_get(bmp, current_pfn) != 0)
         {
-            //mmu_frame_buddy_data.frame_data[current_pfn].frame_attr.reserved = 1;
             mmu_frame_buddy_reserve(current_pfn);
             current_pfn++;
             kdebugf(DEBUG_INFO, MODULE_MMU, "Done reserving.\n", round);
@@ -82,18 +82,18 @@ void mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, u8* start_addr, u64 me
         }
         
         u32 start_free_pfn = current_pfn;
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Splitting....\n", round);
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Acquiring free pages to split to order 10 blocks....\n", round);
         while (current_pfn < mmu_frame_buddy_data.total_pages
             ) 
             {
                 if (bitmap_get(bmp, current_pfn)!=0) break;
-                //kdebugf(DEBUG_INFO, MODULE_MMU, "Currently at free PFN index %u....\n", current_pfn);
                 current_pfn++;
             }
             
             u32 free_len = current_pfn-start_free_pfn;
             
-        mmu_frame_buddy_split_chunks(start_free_pfn, free_len);
+            kdebugf(DEBUG_INFO, MODULE_MMU, "Done acquiring.\n");
+            mmu_frame_buddy_split_chunks(start_free_pfn, free_len);
 endloop:
         round++;
     }
@@ -111,13 +111,23 @@ endloop:
     
 uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)
 {
-    u32 desired_order = mmu_frame_plog2(page_count)+1;
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Allocating %llu pages...\n", page_count);
+
+    // Compute the buddy order of the pages to allocate
+    // We can use log2 to do this.
+    // Here, if the page count is not a power of 2, we will have to round the order up.
+    // For example: 
+    //      Allocate 64 pages, get one block of order 6 (order 6 => 2^6 = 64-page block, nicely fit)
+    //      Allocate 65 pages, get one block of order 7 (order 7 => 2^7 = 128-page block > 65 pages)
+    u32 desired_order = mmu_frame_ceillog2(page_count);
     u32 order_found = desired_order;
     u32 pfn_offset = 0;
-    mmu_frame_buddy_t* head_at_order;
+    mmu_frame_buddy_t* head_at_order=NULL;
 
+    // Find available chunk of (desired_order). If unavailable, bump the order up and repeat.
     while (order_found <= MAX_ORDER)
     {
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Trying to allocate one %llu-page block...\n", (u64)(1<<order_found));
         head_at_order = mmu_frame_buddy_data.free_list[order_found];
         if (head_at_order)
         {
@@ -125,26 +135,37 @@ uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)
             break;
         }
         
+        kdebugf(DEBUG_INFO, MODULE_MMU, "%llu-page block not found. Double it and wait until the next loop.\n", (u64)(1<<order_found));
         order_found++;
     }
     
+    // If every memory order is exhausted, then no allocation.
     if (!head_at_order) return 0;
+    
+    // If we have to settle on a larger block than we need, split the block out.
+    // This function ensures that the current available address is at the top, 
+    // so that we can optimize the "occupied" marking stage, which is here below.
     
     if (order_found > desired_order)
     mmu_frame_buddy_split(head_at_order, desired_order);
 
-    head_at_order->frame_attr.is_free = 0;
-    mmu_frame_buddy_pop_from_free_list(desired_order);
+    head_at_order->frame_attr.is_free = 0; // Used
+
+    // Remove the item out of the free list, as it is "occupied"
+    mmu_frame_buddy_erase_from_free_list(desired_order, head_at_order);
 
     return pfn_offset<<12;
 }
 
 void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr)
 {
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Freeing block at 0x%x...\n", frame_addr);
+    // Obtain the PFN for our address
     usize frame_no = frame_addr >> 12;
 
     mmu_frame_buddy_t* frame_ptr = &mmu_frame_buddy_data.frame_data[frame_no];
 
+    // We will not free reserved or already freed block
     if (frame_ptr->frame_attr.reserved) return;
     if (frame_ptr->frame_attr.is_free) return;
 
@@ -152,15 +173,29 @@ void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr)
     mmu_frame_buddy_merge(frame_ptr);
 }
 
-u32 mmu_frame_plog2(u64 x)
+u32 mmu_frame_ceillog2(u64 x)
 {
-    u32 shift=0;
-    while (x != 1)
-    {
-        x>>=1;
+    if (x <= 1) return 0;
+
+    x--;
+    u32 shift = 0;
+
+    while (x >>= 1)
         shift++;
-    }
-    return shift;
+
+    return shift + 1;
+}
+
+u32 mmu_frame_floorlog2(u64 x)
+{
+    if (x <= 1) return 0;
+
+    u32 shift = 0;
+
+    while (x >>= 1)
+        shift++;
+
+    return shift-1;
 }
 
 void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order)
@@ -168,10 +203,21 @@ void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order)
     if (!chunk) return;
     if (!chunk->frame_attr.is_free) return;
 
+    // First, we pop the larger chunk
+    mmu_frame_buddy_erase_from_free_list(chunk->frame_attr.order, chunk);
+
+    // Then, on a loop we constantly do:
+    //      1. Decrease order (which means cut that chunk in half)
+    //      2. So now we have two halves. We might want to keep one half, and register the other as a free block at its order
+    // We loop until the chunk's order is equal to what we need
+
     u32 pfn = (u32)(chunk - mmu_frame_buddy_data.frame_data);
     while (chunk->frame_attr.order > desired_order)
     {
         chunk->frame_attr.order--;
+        // Here, to access the aforementioned "other half", we can use bitwise XOR.
+        // At a specific order, to access a page frame's peer, do: (pfn ^ (1<<order))
+
         mmu_frame_buddy_register_chunk((pfn ^ (1<<chunk->frame_attr.order)), chunk->frame_attr.order);
     }
 }
@@ -182,6 +228,12 @@ void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk)
     if (!chunk->frame_attr.is_free) return;
 
     u32 chunk_pfn = (u32)(chunk-mmu_frame_buddy_data.frame_data);
+
+    // First, on a loop we do:
+    //      - Compute the other half.
+    //      - Check if that half is either NOT reserved, is free, or its order being the same as the current half's. 
+    // If so, it is eligible for merging.
+    //      - Merge by removing the other half from the free list, and bumping up the order of the current half.
 
     while (chunk->frame_attr.order < MAX_ORDER)
     {
@@ -195,15 +247,19 @@ void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk)
         mmu_frame_buddy_erase_from_free_list(chunk->frame_attr.order, peer_chunk);
         chunk->frame_attr.order++;
     }   
+
+    // Finally, add the merged chunk back to the free list.
     mmu_frame_buddy_push_to_free_list(chunk->frame_attr.order, chunk);
 }
 
 void mmu_frame_buddy_split_chunks(u32 start_pfn, u32 len)
 {
+    // TODO: Also document this code
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Splitting from PFN %u, len=%u.\n", start_pfn, len);
     u32 current_pfn = start_pfn;
     while (len)
     {
-        u32 nearest_smaller_order = mmu_frame_plog2(len);
+        u32 nearest_smaller_order = mmu_frame_floorlog2(len);
         u32 size = (1<<nearest_smaller_order);
         while (nearest_smaller_order && (current_pfn & (size-1))) 
         {

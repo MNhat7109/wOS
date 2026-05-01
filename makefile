@@ -10,10 +10,12 @@ IMG_SIZE=262144      # in 512-byte sectors
 PART1_LABEL=BOOT
 PART2_LABEL=ROOT
 
+QEMU_SHRINK=$(shell if [[ $(SMALL_SCREEN) -eq 1 ]]; then echo on; else echo off; fi)
+
 QEMU_FLAGS= -d int \
 	-cpu max \
 	-machine q35 \
-	-display gtk,zoom-to-fit=off \
+	-display gtk,zoom-to-fit=$(QEMU_SHRINK) \
 	-device piix3-ide,id=ide \
 	-device ahci,id=ahci \
 	-drive id=disk,file=$(IMG_PATH),format=raw,if=none \

@@ -1,4 +1,5 @@
 export TARGET?=i686
+export SMALL_SCREEN?=0
 export QEMU_TARGET=$(if $(filter i686,$(TARGET)),i386,$(TARGET))
 export OSNAME=wOS
 

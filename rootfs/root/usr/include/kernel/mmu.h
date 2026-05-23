@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include <kernel/mmu_frame.h>
 
 #define MODULE_MMU "MMU"
 
@@ -56,8 +55,6 @@ typedef enum
 
 typedef uptr vaddr_t;
 typedef u64 paddr_t;
-
-extern mmu_frame_allocator_t* mmu_frame_alloc;
 
 #define mmu_align_down(_x, _a) ((_x) & ~((_a) - 1))
 #define mmu_align_up(_x, _a)   (((_x) + (_a) - 1) & ~((_a) - 1))

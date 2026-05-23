@@ -1,15 +1,79 @@
 #include <kernel/mmu_frame.h>
 
-mmu_frame_allocator_t default_alloc;
+static mmu_frame_allocator_t this_alloc;
 
-void mmu_frame_load_allocator(mmu_frame_allocator_t** m_alloc)
+uptr mmu_frame_get_meta_offset()
 {
-    *m_alloc = &default_alloc;
+    return this_alloc.meta_offset_vaddr;
 }
 
-void mmu_frame_load_ops(mmu_frame_allocator_t* m_alloc, const mmu_frame_allocator_ops_t* (*alloc_cb)())
+u64 mmu_frame_get_meta_size()
 {
-    if (!alloc_cb) return;
+    return this_alloc.meta_size;
+}
 
-    (m_alloc)->ops = alloc_cb();
+int mmu_frame_populate(mmu_frame_plugins_t* plugin, uptr offset, u64 size)
+{
+    if (!plugin) return -1;
+    if (!plugin->init) return -1;
+
+    int status = plugin->init(&this_alloc, offset, size);
+    if (status < 0) return status;
+
+    this_alloc.plugin = plugin;
+    return 0;
+}
+
+uptr mmu_frame_alloc(u64 n)
+{
+    if (!this_alloc.plugin) 
+    {
+        return 0;
+    }
+
+    if (!this_alloc.plugin->ops.alloc) return 0;
+    return this_alloc.plugin->ops.alloc(&this_alloc, n);
+}
+
+void mmu_frame_free(uptr paddr)
+{
+    if (!this_alloc.plugin) 
+    {
+        return;
+    }
+
+    if (!this_alloc.plugin->ops.free) return;
+    this_alloc.plugin->ops.free(&this_alloc, paddr);
+}
+
+void mmu_frame_reserve_pages(uptr paddr, u64 n)
+{
+    if (!this_alloc.plugin) 
+    {
+        return;
+    }
+
+    if (!this_alloc.plugin->ops.reserve_pages) return;
+    this_alloc.plugin->ops.reserve_pages(&this_alloc, paddr, n);  
+}
+
+void mmu_frame_lock_pages(uptr paddr, u64 n)
+{
+    if (!this_alloc.plugin) 
+    {
+        return;
+    }
+
+    if (!this_alloc.plugin->ops.lock_pages) return;
+    this_alloc.plugin->ops.lock_pages(&this_alloc, paddr, n);  
+}
+void mmu_frame_release_pages(uptr paddr, u64 n)
+{
+    if (!this_alloc.plugin) 
+    {
+        return;
+    }
+
+    if (!this_alloc.plugin->ops.release_pages) return;
+    this_alloc.plugin->ops.release_pages(&this_alloc, paddr, n);  
 }

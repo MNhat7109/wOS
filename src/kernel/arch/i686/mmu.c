@@ -6,6 +6,8 @@
 
 #define HIGHER_HALF_OFFSET 0xC0000000
 
+#define HUGE_PAGE_SIZE (mmu_data.present.pae?HUGE_PAGE_SIZE_PAE:HUGE_PAGE_SIZE_NO_PAE)
+
 typedef struct mmu_features_t
 {
     bool pae : 1;
@@ -95,12 +97,6 @@ void mmu_enable_features()
     full_paging_on = true;
 }
 
-usize HUGE_PAGE_SIZE()
-{
-    if (!mmu_data.present.pse) return 0;
-    return mmu_data.present.pae?HUGE_PAGE_SIZE_PAE:HUGE_PAGE_SIZE_NO_PAE;
-}
-
 paddr_t mmu_vtop(vaddr_t vaddr)
 {
     return (paddr_t)(vaddr-HIGHER_HALF_OFFSET);
@@ -125,22 +121,36 @@ void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes)
 
 void mmu_mmapn(paddr_t addr, usize n, u64 attributes, int flags)
 {
-    vaddr_t va;
-    if (flags & MMU_FLAG_MAP_ID) va = (vaddr_t)addr;
-    else va = mmu_ptov(addr);
+    vaddr_t va = mmu_ptov(addr);
     kdebugf(DEBUG_INFO, "MMU", "Mapping 0x%llx, count=%u, va=0x%x\n", addr, n, va);
     
-    usize huge_page_size;
-    if (flags & MMU_FLAG_HUGE_PAGE) 
+    if (flags == MMU_FLAG_HUGE_PAGE && !mmu_data.present.pse) 
     {
-        huge_page_size=HUGE_PAGE_SIZE();
-        if (huge_page_size == 0) return;
+        return;
     }
     
     for (usize i=0;i<n;i++)
     {
         if (flags & MMU_FLAG_HUGE_PAGE)
-            mmu_mmap_huge(va+i*huge_page_size, addr+i*huge_page_size, attributes);
+            mmu_mmap_huge(va+i*HUGE_PAGE_SIZE, addr+i*HUGE_PAGE_SIZE, attributes);
+        else mmu_mmap(va+i*PAGE_SIZE, addr+i*PAGE_SIZE, attributes);
+    }
+}
+
+void mmu_mmapn_id(paddr_t addr, usize n, u64 attributes, int flags)
+{
+    vaddr_t va = (vaddr_t)addr;
+    kdebugf(DEBUG_INFO, "MMU", "Mapping 0x%llx, count=%u, IDENTITY mode\n", addr, n);
+
+    if (flags == MMU_FLAG_HUGE_PAGE && !mmu_data.present.pse) 
+    {
+        return;
+    }
+
+    for (usize i=0;i<n;i++)
+    {
+        if (flags == MMU_FLAG_HUGE_PAGE)
+            mmu_mmap_huge(va+i*HUGE_PAGE_SIZE, addr+i*HUGE_PAGE_SIZE, attributes);
         else mmu_mmap(va+i*PAGE_SIZE, addr+i*PAGE_SIZE, attributes);
     }
 }
@@ -174,8 +184,9 @@ usize mmu_munmap(vaddr_t vaddr, paddr_t* paddr_out)
     return mmu_munmap_non_pae(vaddr, paddr_out);
 }
 
-usize mmu_munmapn(vaddr_t vaddr, paddr_t* first_paddr_out, usize n)
+usize mmu_munmapn(vaddr_t vaddr, usize n)
 {
+    kdebugf(DEBUG_INFO, "MMU", "Unmapping 0x%x, count=%u\n", vaddr, n);
     if (n == 0) return 0;
 
     paddr_t paddr; u64 unmapped = 0;
@@ -183,8 +194,7 @@ usize mmu_munmapn(vaddr_t vaddr, paddr_t* first_paddr_out, usize n)
 
     if (!paddr)
     {
-        *first_paddr_out = 0;
-        goto finished;
+        return 0;
     }
 
     unmapped++; vaddr+=page_size;
@@ -200,10 +210,9 @@ usize mmu_munmapn(vaddr_t vaddr, paddr_t* first_paddr_out, usize n)
         vaddr+=page_size;
         unmapped++;
     }
-
-finished:
     return unmapped;
 }
+
 
 void mmu_check_features()
 {

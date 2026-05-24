@@ -25,7 +25,7 @@ console_backend_t vga_backend = {
 void video_fallback_init()
 {
     usize vram_pages = mmu_byte_to_4k_pages(0x8000);
-    mmu_mmapn((paddr_t)vram, vram_pages, MMU_PG_ATTR_PCD | MMU_PG_ATTR_RW, MMU_FLAG_MAP_ID);
+    mmu_mmapn_id((paddr_t)vram, vram_pages, MMU_PG_ATTR_PCD | MMU_PG_ATTR_RW, 0);
 
     video_backend = &vga_backend;
 }

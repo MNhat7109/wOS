@@ -4,7 +4,6 @@
 #define MODULE_MMU "MMU"
 
 #define PAGE_SIZE (1<<12)
-usize HUGE_PAGE_SIZE();
 
 #define HUGE_PAGE_SIZE_NO_PAE (1<<22)
 #define HUGE_PAGE_SIZE_PAE (1<<21)
@@ -48,9 +47,9 @@ typedef enum
 
 typedef enum
 {
-    MMU_FLAG_MAP_ID = (1<<0),
-    MMU_FLAG_HUGE_PAGE = (1<<1),
-    MMU_FLAG_VERY_HUGE_PAGE= (1<<2),
+    MMU_FLAG_BASE_PAGE,
+    MMU_FLAG_HUGE_PAGE,
+    MMU_FLAG_VERY_HUGE_PAGE,
 } mmu_flags_t;
 
 typedef uptr vaddr_t;
@@ -76,8 +75,10 @@ void mmu_reload_address_space();
 void mmu_enable_features();
 void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes);
 void mmu_mmapn(paddr_t addr, usize n, u64 attributes, int flags);
+void mmu_mmapn_id(paddr_t addr, usize n, u64 attributes, int flags);
+
 void mmu_mmap_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);
 void mmu_mmap_very_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);
 
 usize mmu_munmap(vaddr_t vaddr, paddr_t* paddr_out);
-usize mmu_munmapn(vaddr_t vaddr, paddr_t* first_paddr_out, usize n);
+usize mmu_munmapn(vaddr_t vaddr, usize n);

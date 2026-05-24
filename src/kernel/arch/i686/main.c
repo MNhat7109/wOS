@@ -83,7 +83,7 @@ void kmemlock()
 void kmemmap()
 {
     // Request one page to store page directories on
-    uptr first_free_page = mmu_frame_alloc(PAGE_SIZE);
+    uptr first_free_page = mmu_frame_alloc(1);
 
     kdebugf(DEBUG_INFO, "MMU", "First free page at: 0x%x\n", first_free_page);
 

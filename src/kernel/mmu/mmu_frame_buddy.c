@@ -52,7 +52,7 @@ int mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, uptr start_addr, u64 me
     
     // Reserve spaces for the metadata
     kdebugf(DEBUG_INFO, MODULE_MMU, "Reserving buddy metadata...\n");
-    m_alloc->plugin->ops.lock_pages(m_alloc, buddy_addr_phys, meta_page_count);
+    mmu_frame_lock_pages(buddy_addr_phys, meta_page_count);
     mmu_mmapn(buddy_addr_phys, meta_page_count, MMU_PG_ATTR_RW, 0);
     
     kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", start_addr);

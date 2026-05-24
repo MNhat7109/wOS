@@ -51,6 +51,11 @@ void mmu_frame_buddy_migrate_from_bitmap(uptr start_addr, u64 mem_size)
     mmu_frame_buddy_data.total_pages = mmu_byte_to_4k_pages(mem_size);
     
     bitmap_t* bmp = mmu_frame_bmp_get_metadata();
+
+    // To prepare for the migration, invalidate the bitmap buffer from the PMM.
+    // We will not unmap the buffer yet, because we still need to do the migration of used/free pages 
+    // from the old bitmap allocator to the newer buddy one.
+    mmu_frame_release_pages(mmu_vtop((vaddr_t)bmp->buffer), mmu_byte_to_4k_pages(bmp->size));
     
     kdebugf(DEBUG_INFO, MODULE_MMU, "Frame addr: 0x%x\n", mmu_frame_buddy_data.frame_data);
     kdebugf(DEBUG_INFO, MODULE_MMU, "Total pages: %llu\n", mmu_frame_buddy_data.total_pages);
@@ -87,6 +92,9 @@ void mmu_frame_buddy_migrate_from_bitmap(uptr start_addr, u64 mem_size)
 endloop:
         round++;
     }
+
+    // Unmap the bitmap buffer
+    mmu_munmapn((vaddr_t)bmp->buffer, mmu_byte_to_4k_pages(bmp->size));
     
     // Summarize total buddy chunks
     kdebugf(DEBUG_INFO, MODULE_MMU, "Done getting info for buddy metadata. Summary:\n");

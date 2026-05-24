@@ -127,7 +127,7 @@ usize mmu_munmap_non_pae(vaddr_t vaddr, paddr_t* paddr_out)
     }
 
     // Otherwise, keep walking the page table.
-    u32* page_table = PT(pd_entry);
+    u32* page_table = PT(pd_index);
 
     u32 page_entry = page_table[page_index];
     if (!(page_entry & MMU_PG_ATTR_PRESENT))
@@ -135,7 +135,7 @@ usize mmu_munmap_non_pae(vaddr_t vaddr, paddr_t* paddr_out)
         *paddr_out = 0;
         return 0;
     }
-
+    
     page_entry &= ~MMU_PG_ATTR_PRESENT;
     *paddr_out = (paddr_t)(page_entry & PAGE_ADDR_MASK);
     page_table[page_index] = page_entry;

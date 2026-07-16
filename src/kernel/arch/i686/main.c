@@ -1,8 +1,10 @@
 #include <stdint.h>
 #include <kernel/arch/i686/cpuid.h>
+#include <kernel/kernel_defs.h>
 #include <kernel/mmu.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
+#include <kernel/mmu_vmem.h>
 #include <kernel/arch/i686/gdt.h>
 #include <kernel/arch/i686/idt.h>
 #include <kernel/arch/i686/isr.h>
@@ -16,6 +18,7 @@ extern u8 __start;
 extern u8 __text_start;
 extern u8 __text_end;
 extern u8 __data_start;
+extern u8 __data_end;
 extern u8 __rodata_start;
 extern u8 __rodata_end;
 extern u8 __bss_start;
@@ -57,7 +60,8 @@ void debug_console_init();
 void debug_console_putch(char ch);
 void debug_console_write(const char* str);
 
-void mmu_arch_init(uptr first_free_page, u32 optional_features);
+void mmu_arch_init(u32 optional_features);
+void mmu_frame_bmp_reserve_bmp_region();
 
 void kmemlock()
 {
@@ -82,40 +86,42 @@ void kmemlock()
 
 void kmemmap()
 {
-    // Request one page to store page directories on
-    uptr first_free_page = mmu_frame_alloc(1);
-
-    kdebugf(DEBUG_INFO, "MMU", "First free page at: 0x%x\n", first_free_page);
-
     // Init arch function to do arch-specific things
     u32 additional = PARAM_PSE_ON; // PAE: 0, NX: 0, PSE: 1
-    mmu_arch_init(first_free_page, additional); // Init paging with additional features
-    
-    // Map the frame bitmap
-    usize bmp_page_count = mmu_byte_to_4k_pages(mmu_frame_get_meta_size());
-    mmu_mmapn(mmu_vtop((vaddr_t)mmu_frame_get_meta_offset()), bmp_page_count, MMU_PG_ATTR_RW, 0);
+    mmu_arch_init(additional); // Init paging with additional features
 
-    usize kernel_page_count = mmu_byte_to_4k_pages(kernel_data.kernel_size);
-
-    // Map everything else in the kernel as RW
-    mmu_mmapn(kernel_data.kernel_phys, kernel_page_count, MMU_PG_ATTR_RW, 0);
-    
-    // Remap .text and .rodata to RO
+    mmu_frame_bmp_reserve_bmp_region();
+        
+    // Map .text and .rodata to RO
     usize text_size = ((usize)&__text_end) - ((usize)&__text_start);
-    usize text_page_count = mmu_byte_to_4k_pages(text_size);
     paddr_t text_phys_start = mmu_vtop((vaddr_t)&__text_start);
-    mmu_mmapn(text_phys_start, text_page_count, 0, 0);
-
+    mmu_vmem_alloc(&__text_start, text_size, MMU_VMA_R | MMU_VMA_X | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)text_phys_start);
+    
     usize rodata_size = ((usize)&__rodata_end) - ((usize)&__rodata_start);
-    usize rodata_page_count = mmu_byte_to_4k_pages(rodata_size);
     paddr_t rodata_phys_start = mmu_vtop((vaddr_t)&__rodata_start);
-    mmu_mmapn(rodata_phys_start, rodata_page_count, 0, 0);
+    mmu_vmem_alloc(&__rodata_start, text_size, MMU_VMA_R | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)rodata_phys_start);
 
+    // Everything else is RW
+    usize data_size = ((usize)&__data_end) - ((usize)&__data_start);
+    paddr_t data_phys_start = mmu_vtop((vaddr_t)&__data_start);
+    mmu_vmem_alloc(&__data_start, data_size, MMU_VMA_R | MMU_VMA_W | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)data_phys_start);
+    
+    usize bss_size = ((usize)&__bss_end) - ((usize)&__bss_start);
+    paddr_t bss_phys_start = mmu_vtop((vaddr_t)&__bss_start);
+    mmu_vmem_alloc(&__bss_start, bss_size, MMU_VMA_R | MMU_VMA_W | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)bss_phys_start);
+    
+    usize stack_size = mmu_align_up((usize)&__stack_end, PAGE_SIZE) - mmu_align_down((usize)&__stack_start, PAGE_SIZE);
+    paddr_t stack_phys_start = mmu_align_down(mmu_vtop((vaddr_t)&__stack_start), PAGE_SIZE);
+    // TODO: Add flags for stack because it grows down instead of up
+    // Actually, it's an obligation now. Otherwise, triple fault will occur.
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "Stack start: 0x%x, end: 0x%x, size: %x\n", (usize)&__stack_start, (usize)&__stack_end, stack_size);
+    mmu_vmem_alloc(&__stack_start, stack_size, MMU_VMA_R | MMU_VMA_W | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)stack_phys_start);
+    
     // Now after everything has been mapped, wait for other components to initialize and
     // and map its region, then we can enable paging
 }
 
-void kmemstart()
+void kmmustart()
 {
     mmu_enable_features();
 
@@ -143,6 +149,8 @@ void kmemstart()
         other,
         kernel_data.kernel_size
     );
+
+    mmu_init_stage2(KERNEL_BASE);
 }
 
 void kgdtstart()
@@ -213,12 +221,6 @@ void kintstart()
     kdebugf(DEBUG_INFO, MODULE_KRNL, "ISR installed\n");
 }
 
-void kmemevolve()
-{
-    mmu_init_stage2();
-    kdebugf(DEBUG_INFO, MODULE_KRNL, "Switched PMM to buddy allocation mode\n");
-}
-
 void kstart(boot_info_t* boot_inf)
 {
     debug_console_init();
@@ -229,7 +231,7 @@ void kstart(boot_info_t* boot_inf)
     stdio_register_putc(debug_console_putch);
     stdio_register_puts(debug_console_write);
 
-    kdebugf(DEBUG_INFO, MODULE_KRNL, "Leveled logs arrived\n");
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "Leveled logs has arrived\n");
     kdebugf(DEBUG_INFO, MODULE_KRNL, "Boot info addr: 0x%x\n", boot_inf);
 
     cpuid_check();
@@ -246,8 +248,7 @@ void kstart(boot_info_t* boot_inf)
     
     kgdtstart();
     kintstart();
-    kmemstart();
-    kmemevolve();
+    kmmustart();
 
     // boot_prepare_acpi();
 

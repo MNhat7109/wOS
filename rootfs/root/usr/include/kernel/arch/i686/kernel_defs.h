@@ -1,0 +1,6 @@
+#pragma once
+
+#define USER_BASE 0
+#define USER_END 0xBFFFFFFF
+#define KERNEL_BASE 0xC0000000
+#define KERNEL_END 0xFFFFFFFF

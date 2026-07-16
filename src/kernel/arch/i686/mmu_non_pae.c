@@ -1,4 +1,5 @@
 #include <kernel/mmu.h>
+#include <kernel/arch/i686/mmu.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/debug.h>
 #include <string.h>
@@ -33,7 +34,9 @@ NULL))
 
 void __attribute__((cdecl)) mmu_flush_tlb(vaddr_t vaddr);
 
-void mmu_mmap_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
+paddr_t mmu_walk_page_table_non_pae(vaddr_t vaddr);
+
+int mmu_map_page_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
 {
     kdebugf(DEBUG_INFO, "MMU", "Mapping 0x%llx, va=0x%x\n", paddr, vaddr);
 
@@ -62,6 +65,11 @@ void mmu_mmap_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
         // Page table does not exist, so allocate a frame, and populate the entry.
 
         uptr page_table_phys = mmu_frame_alloc(1);
+        if (!page_table_phys)
+        {
+            kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Out of Memory!\n");
+            return -1;
+        }
         
         pd_entry = (u32)page_table_phys & PT_ADDR_MASK;
         pd_entry |= MMU_PG_ATTR_PRESENT;
@@ -80,9 +88,10 @@ void mmu_mmap_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
     
     // Reassign
     page_table[page_index] = p_entry;
+    return 0;
 }
 
-void mmu_mmap_huge_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
+int mmu_map_page_huge_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
 {
     // Just like with mapping regular 4KB pages, we will start with the page directory first.
     // The difference is, this time, we don't go deeper to page table-page entry level
@@ -98,31 +107,29 @@ void mmu_mmap_huge_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
     huge_page_entry |= attributes;
 
     PD[huge_page_index] = huge_page_entry;
+    return 0;
 }
 
-usize mmu_munmap_non_pae(vaddr_t vaddr, paddr_t* paddr_out)
+int mmu_unmap_page_non_pae(vaddr_t vaddr)
 {
     u32 page_index = PAGE_INDEX(vaddr);
     u32 pd_index = PD_INDEX(vaddr);
-    usize return_size =0;
     
     // Walk page directory
     u32 pd_entry = PD[pd_index];
 
     if (!(pd_entry & MMU_PG_ATTR_PRESENT))
     {
-        *paddr_out = 0;
-        return 0;
+        kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Page NOT exist in page directory!\n");
+        return -1;
     }
 
     // Here, if the address points to a huge page, stop walking.
     if (pd_entry & MMU_PG_ATTR_PSE)
     {
         pd_entry &= ~MMU_PG_ATTR_PRESENT;
-        *paddr_out = (paddr_t)(pd_entry & PT_ADDR_MASK);
         PD[pd_index] = pd_entry;
 
-        return_size = HUGE_PAGE_SIZE_NO_PAE;
         goto done;
     }
 
@@ -132,18 +139,43 @@ usize mmu_munmap_non_pae(vaddr_t vaddr, paddr_t* paddr_out)
     u32 page_entry = page_table[page_index];
     if (!(page_entry & MMU_PG_ATTR_PRESENT))
     {
-        *paddr_out = 0;
-        return 0;
+        kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Page NOT exist in page table!\n");
+        return -1;
     }
     
     page_entry &= ~MMU_PG_ATTR_PRESENT;
-    *paddr_out = (paddr_t)(page_entry & PAGE_ADDR_MASK);
     page_table[page_index] = page_entry;
-    return_size = PAGE_SIZE;
 
 done:
     mmu_flush_tlb(vaddr);
-    return return_size;
+    return 0;
+}
+
+paddr_t mmu_walk_page_table_non_pae(vaddr_t vaddr)
+{
+    u32 page_index = PAGE_INDEX(vaddr);
+    u32 pd_index = PD_INDEX(vaddr);
+    
+    // Walk page directory
+    u32 pd_entry = PD[pd_index];
+
+    if (!(pd_entry & MMU_PG_ATTR_PRESENT))
+    {
+        return 0;
+    }
+
+    // Here, if the address points to a huge page, stop walking.
+    if (pd_entry & MMU_PG_ATTR_PSE)
+    {
+        return (paddr_t)(pd_entry & PT_ADDR_MASK);
+    }
+
+    // Otherwise, keep walking the page table.
+    u32* page_table = PT(pd_index);
+
+    u32 page_entry = page_table[page_index];
+
+    return (paddr_t)(page_entry & PAGE_ADDR_MASK);
 }
 
 void mmu_non_pae_init(paddr_t page_dir_addr)

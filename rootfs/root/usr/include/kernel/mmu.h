@@ -31,27 +31,6 @@ typedef struct memory_info_t
     memory_region_t regions[];
 } __attribute__((packed)) memory_info_t;
 
-typedef enum
-{
-    MMU_PG_ATTR_PRESENT = (1ULL<<0), // Present
-    MMU_PG_ATTR_RW = (1ULL<<1), // Read-write
-    MMU_PG_ATTR_US = (1ULL<<2), // User-super
-    MMU_PG_ATTR_PWT = (1ULL<<3), // Write-through
-    MMU_PG_ATTR_PCD = (1ULL<<4), // Uncacheable
-    MMU_PG_ATTR_ACCESSED = (1ULL<<5), // Accessed indicator
-    MMU_PG_ATTR_GLOBAL = (1ULL<<6), // No invalidate
-    MMU_PG_ATTR_PSE = (1ULL<<7), // Huge page
-    MMU_PG_ATTR_PAT = (1ULL<<12), // Page attribute table
-    MMU_PG_ATTR_NX = (1ULL<<63), // Execute disable
-} mmu_page_attributes_t;
-
-typedef enum
-{
-    MMU_FLAG_BASE_PAGE,
-    MMU_FLAG_HUGE_PAGE,
-    MMU_FLAG_VERY_HUGE_PAGE,
-} mmu_flags_t;
-
 typedef uptr vaddr_t;
 typedef u64 paddr_t;
 
@@ -68,17 +47,8 @@ paddr_t mmu_vtop(vaddr_t vaddr);
 vaddr_t mmu_ptov(paddr_t paddr);
 
 int mmu_init(uptr start_addr, memory_info_t* mem_map);
-void mmu_init_stage2();
+int mmu_init_stage2(uptr start_addr);
 
 void mmu_load_address_space(paddr_t paddr);
 void mmu_reload_address_space();
 void mmu_enable_features();
-void mmu_mmap(vaddr_t vaddr, paddr_t paddr, u64 attributes);
-void mmu_mmapn(paddr_t addr, usize n, u64 attributes, int flags);
-void mmu_mmapn_id(paddr_t addr, usize n, u64 attributes, int flags);
-
-void mmu_mmap_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);
-void mmu_mmap_very_huge(vaddr_t vaddr, paddr_t paddr, u64 attributes);
-
-usize mmu_munmap(vaddr_t vaddr, paddr_t* paddr_out);
-usize mmu_munmapn(vaddr_t vaddr, usize n);

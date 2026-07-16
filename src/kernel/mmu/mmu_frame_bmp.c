@@ -1,6 +1,7 @@
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu.h>
+#include <kernel/mmu_vmem.h>
 #include <kernel/debug.h>
 
 #include <bitmap.h>
@@ -49,11 +50,18 @@ int mmu_frame_bmp_init(mmu_frame_allocator_t* m_alloc, uptr bmp_buffer_addr, u64
 
     // Lock bitmap pages on the bitmap
     u64 page_count = mmu_byte_to_4k_pages(m_alloc->meta_size);
+    uptr phys = (uptr)mmu_vtop((vaddr_t)bmp_buffer_addr);
 
     kdebugf(DEBUG_INFO, MODULE_MMU, "Bitmap size: %u\n", m_alloc->meta_size);
-    mmu_frame_bmp_set_n(m_alloc,(uptr)mmu_vtop((vaddr_t)bmp_buffer_addr), page_count);
-
+    mmu_frame_bmp_set_n(m_alloc,phys, page_count);
+    
     return 0;
+}
+
+void mmu_frame_bmp_reserve_bmp_region()
+{
+    uptr phys = (uptr)mmu_vtop((vaddr_t)mmu_frame_bmp_data.frame_bmp.buffer);
+    mmu_vmem_alloc((void*)mmu_frame_bmp_data.frame_bmp.buffer, mmu_frame_bmp_data.frame_bmp.size, MMU_VMA_FIXED | MMU_VMA_PHYS | MMU_VMA_R | MMU_VMA_W, (void*)phys);
 }
 
 uptr mmu_frame_bmp_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)

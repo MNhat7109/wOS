@@ -2,6 +2,7 @@
 #include <kernel/mmu_frame_buddy.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu.h>
+#include <kernel/mmu_vmem.h>
 #include <kernel/debug.h>
 #include <stdbool.h>
 
@@ -21,13 +22,14 @@ void mmu_frame_buddy_mark_free(u32 pfn);
 void mmu_frame_buddy_mark_used(u32 pfn);
 bool mmu_frame_buddy_check_reserved(u32 pfn);
 bool mmu_frame_buddy_check_free(u32 pfn);
+bool mmu_frame_buddy_check_head(u32 pfn);
 u8 mmu_frame_buddy_get_order(u32 pfn);
 
 u32 mmu_frame_buddy_find_avl_block(u32 order);
 void mmu_frame_buddy_coalesce_block(u32 pfn);
 
-u32 mmu_frame_ceillog2(u64 x);
-u32 mmu_frame_floorlog2(u64 x);
+u32 mmu_ceillog2(u64 x);
+u32 mmu_floorlog2(u64 x);
 
 mmu_frame_plugins_t buddy_plugin = {
     .init = &mmu_frame_buddy_init,
@@ -46,19 +48,15 @@ int mmu_frame_buddy_init(mmu_frame_allocator_t* m_alloc, uptr start_addr, u64 me
     
     m_alloc->meta_offset_vaddr = start_addr;
     m_alloc->meta_size = sizeof(mmu_frame_buddy_t)*mmu_byte_to_4k_pages(mem_size);
-        
-    uptr buddy_addr_phys = mmu_vtop((vaddr_t)start_addr);
-    u64 meta_page_count = mmu_byte_to_4k_pages(m_alloc->meta_size);
-    
+
     // Reserve spaces for the metadata
     kdebugf(DEBUG_INFO, MODULE_MMU, "Reserving buddy metadata...\n");
-    mmu_frame_lock_pages(buddy_addr_phys, meta_page_count);
-    mmu_mmapn(buddy_addr_phys, meta_page_count, MMU_PG_ATTR_RW, 0);
+    void* meta_addr = mmu_vmem_alloc((void*)start_addr, m_alloc->meta_size, MMU_VMA_ANON | MMU_VMA_R | MMU_VMA_W, NULL);
     
-    kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", start_addr);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy start addr: 0x%x\n", (uptr)meta_addr);
     kdebugf(DEBUG_INFO, MODULE_MMU, "Buddy size: %llu\n", m_alloc->meta_size);
 
-    mmu_frame_buddy_migrate_from_bitmap(start_addr, mem_size);
+    mmu_frame_buddy_migrate_from_bitmap((uptr)meta_addr, mem_size);
     return 0;
 }
 
@@ -83,7 +81,7 @@ uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)
     // For example: 
     //      Allocate 64 pages, get one block of order 6 (order 6 => 2^6 = 64-page block, nicely fit)
     //      Allocate 65 pages, get one block of order 7 (order 7 => 2^7 = 128-page block > 65 pages)
-    u32 desired_order = mmu_frame_ceillog2(page_count);
+    u32 desired_order = mmu_ceillog2(page_count);
     u32 order_found = desired_order;
     u32 pfn_offset = mmu_frame_buddy_find_avl_block(desired_order);
     mmu_frame_buddy_mark_used(pfn_offset);
@@ -95,9 +93,21 @@ uptr mmu_frame_buddy_alloc(mmu_frame_allocator_t* m_alloc, u64 page_count)
 
 void mmu_frame_buddy_free(mmu_frame_allocator_t* m_alloc, uptr frame_addr)
 {
+    if (!mmu_is_aligned(frame_addr, PAGE_SIZE))
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Physical address is not aligned to PAGE_SIZE=0x1000.\n");
+        return;
+    }
+    
+    usize frame_no = frame_addr >> 12;
+    if (!mmu_frame_buddy_check_head(frame_no))
+    {
+        kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Tried to free page at middle of block.\n");
+        return;
+    }
+
     kdebugf(DEBUG_INFO, MODULE_MMU, "Freeing block at 0x%x...\n", frame_addr);
     // Obtain the PFN for our address
-    usize frame_no = frame_addr >> 12;
     u8 order = mmu_frame_buddy_get_order(frame_no);
 
     mmu_frame_buddy_coalesce_block(frame_no);

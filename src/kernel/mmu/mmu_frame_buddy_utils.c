@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <kernel/debug.h>
 #include <kernel/mmu.h>
+#include <kernel/mmu_vmem.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_frame_buddy.h>
@@ -42,8 +43,8 @@ void mmu_frame_buddy_erase_from_free_list(u32 order, mmu_frame_buddy_t* frame);
 bool mmu_frame_buddy_check_reserved(u32 pfn);
 bool mmu_frame_buddy_check_free(u32 pfn);
 
-u32 mmu_frame_ceillog2(u64 x);
-u32 mmu_frame_floorlog2(u64 x);
+u32 mmu_ceillog2(u64 x);
+u32 mmu_floorlog2(u64 x);
 
 void mmu_frame_buddy_migrate_from_bitmap(uptr start_addr, u64 mem_size)
 {
@@ -94,7 +95,7 @@ endloop:
     }
 
     // Unmap the bitmap buffer
-    mmu_munmapn((vaddr_t)bmp->buffer, mmu_byte_to_4k_pages(bmp->size));
+    //mmu_vmem_free((vaddr_t)bmp->buffer);
     
     // Summarize total buddy chunks
     kdebugf(DEBUG_INFO, MODULE_MMU, "Done getting info for buddy metadata. Summary:\n");
@@ -251,7 +252,8 @@ void mmu_frame_buddy_register_chunk(u32 pfn, u32 order)
         .is_free = 1,
         .reserved = 0,
         .order = order,
-        .zone = MMU_BUDDY_ZONE_NORMAL
+        .zone = MMU_BUDDY_ZONE_NORMAL,
+        .is_head = 1
     };
     mmu_frame_buddy_data.frame_data[pfn].next = NULL;
     
@@ -284,7 +286,7 @@ void mmu_frame_buddy_split_chunks(u32 start_pfn, u32 len)
     u32 current_pfn = start_pfn;
     while (len)
     {
-        u32 nearest_smaller_order = mmu_frame_floorlog2(len);
+        u32 nearest_smaller_order = mmu_floorlog2(len);
         u32 size = (1<<nearest_smaller_order);
         while (nearest_smaller_order && (current_pfn & (size-1))) 
         {
@@ -366,6 +368,11 @@ bool mmu_frame_buddy_check_free(u32 pfn)
     return mmu_frame_buddy_data.frame_data[pfn].frame_attr.is_free;
 }
 
+bool mmu_frame_buddy_check_head(u32 pfn)
+{
+    return mmu_frame_buddy_data.frame_data[pfn].frame_attr.is_head;
+}
+
 int mmu_frame_buddy_mark_reserved(u32 pfn)
 {
     if (!mmu_frame_buddy_check_free(pfn)) return -1;
@@ -399,14 +406,4 @@ void mmu_frame_buddy_mark_used(u32 pfn)
 u8 mmu_frame_buddy_get_order(u32 pfn)
 {
     return mmu_frame_buddy_data.frame_data[pfn].frame_attr.order;
-}
-
-u32 mmu_frame_ceillog2(u64 x)
-{
-    return x <= 1 ? 0 : 64 - __builtin_clzll(x-1);
-}
-
-u32 mmu_frame_floorlog2(u64 x)
-{
-    return x ? 63 - __builtin_clzll(x) : 0;
 }

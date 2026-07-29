@@ -6,7 +6,6 @@ global cpuidex
 extern cpuid_notify_error
 extern cpuid_notify_unsupported
 
-; TODO: This function will only be temporary, will be changed after IDT is implemented
 ; /**
 ; *
 ; * @brief Check if CPUID can be used

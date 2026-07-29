@@ -1,6 +1,8 @@
 #pragma once
 #include <kernel/mmu.h>
 
+#define ADDR_INVAL 0x67
+
 typedef enum
 {
     MMU_VMA_R = (1<<0),
@@ -24,6 +26,6 @@ typedef enum
     MMU_VMA_VERY_HUGE_PAGE = (1<<19),
 } mmu_vma_behavior_t;
 
-void mmu_vmem_init();
+void mmu_vmem_init(uptr tail_addr);
 void* mmu_vmem_alloc(void* addr, usize len, int flags, void* args);
 void mmu_vmem_free(void* addr);

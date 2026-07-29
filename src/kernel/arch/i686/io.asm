@@ -6,6 +6,7 @@ global outl
 global inl
 global outw
 global inw
+global panic
 
 ; /**
 ; *
@@ -141,3 +142,12 @@ inw:
     mov esp, ebp
     pop ebp
     ret
+
+; /**
+; *
+; * @brief Stop CPU execution indefinitely
+; *
+; */
+panic:
+    cli
+    hlt

@@ -67,18 +67,14 @@ void mmu_frame_buddy_migrate_from_bitmap(uptr start_addr, u64 mem_size)
     u32 current_pfn = 0, buddy_chunks = 0, round=0;
     while (current_pfn < mmu_frame_buddy_data.total_pages)
     {
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Round %u...\n", round);
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Current PFN at index %u: %u\n", current_pfn, bitmap_get(bmp, current_pfn));
         if (bitmap_get(bmp, current_pfn) != 0)
         {
             mmu_frame_buddy_mark_reserved(current_pfn);
             current_pfn++;
-            kdebugf(DEBUG_INFO, MODULE_MMU, "Done reserving.\n", round);
             goto endloop;
         }
         
         u32 start_free_pfn = current_pfn;
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Acquiring free pages to split to order 10 blocks....\n", round);
         while (current_pfn < mmu_frame_buddy_data.total_pages
             ) 
             {
@@ -88,7 +84,6 @@ void mmu_frame_buddy_migrate_from_bitmap(uptr start_addr, u64 mem_size)
             
             u32 free_len = current_pfn-start_free_pfn;
             
-            kdebugf(DEBUG_INFO, MODULE_MMU, "Done acquiring.\n");
             mmu_frame_buddy_split_chunks(start_free_pfn, free_len);
 endloop:
         round++;
@@ -115,7 +110,8 @@ void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order)
     if (!chunk) return;
     if (!chunk->frame_attr.is_free) return;
 
-    kdebugf(DEBUG_INFO, MODULE_MMU, "Splitting chunk at 0x%x to order %u...\n", chunk, desired_order);
+    u32 pfn = (u32)(chunk - mmu_frame_buddy_data.frame_data);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Splitting chunk (header offset=0x%p, pfn=%u) to order %u...\n", chunk, pfn, desired_order);
 
     // First, we pop the larger chunk
     mmu_frame_buddy_erase_from_free_list(chunk->frame_attr.order, chunk);
@@ -126,9 +122,6 @@ void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order)
     //      2. So now we have two halves. We might want to keep one half, and register the other as a free block at its order
     // We loop until the chunk's order is equal to what we need
 
-    u32 pfn = (u32)(chunk - mmu_frame_buddy_data.frame_data);
-    kdebugf(DEBUG_INFO, MODULE_MMU, "Chunk PFN=%u\n", pfn);
-
     while (chunk->frame_attr.order > desired_order)
     {
         kdebugf(DEBUG_INFO, MODULE_MMU, "Kage Bunshin no Jutsu!\n");
@@ -136,9 +129,9 @@ void mmu_frame_buddy_split(mmu_frame_buddy_t* chunk, u32 desired_order)
         // Here, to access the aforementioned "other half", we can use bitwise XOR.
         // At a specific order, to access a page frame's peer, do: (pfn ^ (1<<order))
         
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Adding block at PFN=%u, order=%u to free list...\n", 
-            (pfn ^ (1<<chunk->frame_attr.order)), chunk->frame_attr.order
-        );
+        // kdebugf(DEBUG_INFO, MODULE_MMU, "Adding block at PFN=%u, order=%u to free list...\n", 
+            // (pfn ^ (1<<chunk->frame_attr.order)), chunk->frame_attr.order
+        // );
         mmu_frame_buddy_register_chunk((pfn ^ (1<<chunk->frame_attr.order)), chunk->frame_attr.order);
     }
     kdebugf(DEBUG_INFO, MODULE_MMU, "Done splitting chunk.\n");
@@ -162,16 +155,16 @@ void mmu_frame_buddy_merge(mmu_frame_buddy_t* chunk)
 
     while (chunk->frame_attr.order < MAX_ORDER)
     {
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Current order=%u...\n", chunk->frame_attr.order);
+        // kdebugf(DEBUG_INFO, MODULE_MMU, "Current order=%u...\n", chunk->frame_attr.order);
         u32 peer_chunk_pfn = chunk_pfn ^ (1<<chunk->frame_attr.order);
         mmu_frame_buddy_t* peer_chunk = &mmu_frame_buddy_data.frame_data[peer_chunk_pfn];
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Examining chunk PFN=%u...\n", peer_chunk_pfn);
+        // kdebugf(DEBUG_INFO, MODULE_MMU, "Examining chunk PFN=%u...\n", peer_chunk_pfn);
 
         if (peer_chunk->frame_attr.reserved) break;
         if (!peer_chunk->frame_attr.is_free) break;
         if (peer_chunk->frame_attr.order != chunk->frame_attr.order) break;
 
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Eligible for rejoining. Erasing from free list...\n");
+        // kdebugf(DEBUG_INFO, MODULE_MMU, "Eligible for rejoining. Erasing from free list...\n");
         mmu_frame_buddy_erase_from_free_list(chunk->frame_attr.order, peer_chunk);
         kdebugf(DEBUG_INFO, MODULE_MMU, "Fuu- sion... HA!\n");
         chunk->frame_attr.order++;
@@ -194,17 +187,16 @@ u32 mmu_frame_buddy_find_avl_block(u32 order)
     // Find available chunk of (desired_order). If unavailable, bump the order up and repeat.
     while (order_found <= MAX_ORDER)
     {
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Trying to allocate one %llu-page block...\n", (u64)(1<<order_found));
+        // kdebugf(DEBUG_INFO, MODULE_MMU, "Trying to allocate one %llu-page block...\n", (u64)(1<<order_found));
         head_at_order = mmu_frame_buddy_data.free_list[order_found];
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Head at 0x%x...\n", head_at_order);
         if (head_at_order)
         {
-            kdebugf(DEBUG_INFO, MODULE_MMU, "%llu-page block found.\n", (u64)(1<<order_found));
+            // kdebugf(DEBUG_INFO, MODULE_MMU, "%llu-page block found.\n", (u64)(1<<order_found));
             pfn_offset = head_at_order-mmu_frame_buddy_data.frame_data;
             break;
         }
         
-        kdebugf(DEBUG_INFO, MODULE_MMU, "%llu-page block not found. Double it and wait until the next loop.\n", (u64)(1<<order_found));
+        // kdebugf(DEBUG_INFO, MODULE_MMU, "%llu-page block not found. Double it and wait until the next loop.\n", (u64)(1<<order_found));
         order_found++;
     }
     
@@ -259,7 +251,7 @@ void mmu_frame_buddy_register_chunk(u32 pfn, u32 order)
     
     if (!mmu_frame_buddy_data.free_list[order])
     {
-        kdebugf(DEBUG_INFO, MODULE_MMU, "Making new linked list at order...\n");
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Making new linked list at order %u...\n", order);
         mmu_frame_buddy_data.free_list[order] = &mmu_frame_buddy_data.frame_data[pfn];
         return;
     }

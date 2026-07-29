@@ -1,12 +1,14 @@
 #include <kernel/mmu.h>
 #include <kernel/arch/i686/mmu.h>
+#include <kernel/arch/i686/kernel_defs.h>
+#include <kernel/mmu_vmem.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/debug.h>
 #include <kernel/arch/i686/cpuid.h>
 #include <stdbool.h>
 #include <string.h>
 
-#define HIGHER_HALF_OFFSET 0xC0000000
+#define HIGHER_HALF_OFFSET KERNEL_BASE
 
 
 typedef struct mmu_features_t
@@ -52,8 +54,7 @@ paddr_t mmu_walk_page_table_pae(vaddr_t vaddr);
 
 void mmu_arch_init(u32 optional_features)
 {
-    kdebugf(DEBUG_INFO, "MMU", "Initializing i686 MMU...\n");
-    kdebugf(DEBUG_INFO, "MMU", "Probing features...\n");
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Initializing i686 MMU...\n");
 
     // Check additional MMU features
     mmu_check_features();
@@ -62,7 +63,7 @@ void mmu_arch_init(u32 optional_features)
     memcpy(&mmu_data.intended, &optional_features, sizeof(mmu_data.intended));
 
     const char* yn[2] = {"no", "yes"};
-    kdebugf(DEBUG_INFO, "MMU", "MMU additional features:\n"
+    kdebugf(DEBUG_INFO, MODULE_MMU, "MMU additional features:\n"
     "\tPhysical Address Extension: present: %s, to be toggled: %s\n"
     "\tPage Size Extension: present: %s, to be toggled: %s\n"
     "\tExecute Disable bit: present: %s, to be toggled: %s\n",
@@ -74,8 +75,12 @@ void mmu_arch_init(u32 optional_features)
     mmu_data.present.pae = mmu_data.intended.pae && mmu_data.cap.pae;
     mmu_data.present.nx = mmu_data.intended.nx && mmu_data.cap.nx;
 
+    // Start up VMM
+    mmu_vmem_init(i686_VADDR_END);
+
     // Init based on features
     mmu_init_paging();
+    kdebugf(DEBUG_INFO, MODULE_MMU, "i686 MMU initialized\n");
 }
 
 void mmu_load_address_space(paddr_t paddr)
@@ -85,7 +90,7 @@ void mmu_load_address_space(paddr_t paddr)
 
 void mmu_reload_address_space()
 {
-    mmu_reload_address_space();
+    mmu_reload_address_space_i686();
 }
 
 void mmu_enable_features()
@@ -164,6 +169,8 @@ paddr_t mmu_walk_page_table(vaddr_t vaddr)
 
 void mmu_check_features()
 {
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Probing features...\n");
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Checking for PSE and PAE...\n");
     // Check for PSE and PAE
     u32 cpu_info_out[4];
     cpuid(CPUID_FUNC_GETFEATURES, cpu_info_out);
@@ -174,9 +181,9 @@ void mmu_check_features()
 
     // Now check for NX
     // At this point, if PAE is not available, then we can stop.
-    if (!mmu_data.cap.pae) return;
+    if (!mmu_data.cap.pae) goto done;
 
-    kdebugf(DEBUG_INFO, "MMU", "Checking for NX...\n");
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Checking for NX...\n");
 
     // Query max extended leaf
     // Because we must poke at function (leaf) 0x80000001 to check for NX,
@@ -187,11 +194,13 @@ void mmu_check_features()
     // So please please please, if you are maintaining this (and if I really have maintainers at all), please keep this
     // code, one way or another.
     cpuid(CPUID_FUNC_X_MAXLEAF, cpu_info_out); // Number of leaves will be stored at EAX
-    if (cpu_info_out[0] < CPUID_FUNC_X_GETFEATURES) return; // NX will certainly not be available to even check if it's available, let alone enabling.
+    if (cpu_info_out[0] < CPUID_FUNC_X_GETFEATURES) goto done; // NX will certainly not be available to even check if it's available, let alone enabling.
     
     // Check for NX
     cpuid(CPUID_FUNC_X_GETFEATURES, cpu_info_out);
     mmu_data.cap.nx = (cpu_info_out[3] >> 20) & 1;
+done:
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Done checking for features.\n");
 }
 
 void mmu_init_paging()

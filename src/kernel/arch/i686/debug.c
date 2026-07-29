@@ -1,4 +1,5 @@
 #include <kernel/debug.h>
+#include <kernel/arch/i686/io.h>
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -6,7 +7,8 @@
 static const char* str_debugmode[] = {
     "INFO",
     "WARN",
-    "CRITICAL"
+    "CRITICAL",
+    "FATAL"
 };
 
 void kdebugf(int mode, const char* module, const char* fmt, ...)
@@ -16,9 +18,8 @@ void kdebugf(int mode, const char* module, const char* fmt, ...)
     va_start(args, fmt);
     vprintf(fmt, args);
     va_end(args);
-    if (mode == DEBUG_CRITICAL) 
+    if (mode == DEBUG_FATAL) 
     {
-        __asm__ volatile("cli");
-        __asm__ volatile("hlt");
+        panic();
     }
 }

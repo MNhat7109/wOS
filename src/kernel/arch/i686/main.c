@@ -1,16 +1,20 @@
 #include <stdint.h>
+#include <string.h>
 #include <kernel/arch/i686/cpuid.h>
-#include <kernel/kernel_defs.h>
+#include <kernel/arch/i686/kernel_defs.h>
 #include <kernel/mmu.h>
 #include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_vmem.h>
+#include <kernel/mmu_heap.h>
 #include <kernel/arch/i686/gdt.h>
 #include <kernel/arch/i686/idt.h>
 #include <kernel/arch/i686/isr.h>
 #include <kernel/debug.h>
 
 #define MODULE_KRNL "KMAIN"
+
+#define DEFAULT_STACK_SIZE 0x8000
 
 extern u8 __low_start;
 extern u8 __entry_start;
@@ -23,8 +27,6 @@ extern u8 __rodata_start;
 extern u8 __rodata_end;
 extern u8 __bss_start;
 extern u8 __bss_end;
-extern u8 __stack_start;
-extern u8 __stack_end;
 extern u8 __end;
 
 typedef struct framebuffer_t framebuffer_t;
@@ -51,6 +53,8 @@ static struct
 {
     usize kernel_size;
     usize kernel_phys;
+    uptr kernel_stack_bot;
+    uptr kernel_stack_top;
 } kernel_data;
 
 void stdio_register_putc(void (*putc_op)(char ch));
@@ -59,6 +63,8 @@ void stdio_register_puts(void (*puts_op)(const char* str));
 void debug_console_init();
 void debug_console_putch(char ch);
 void debug_console_write(const char* str);
+
+void __attribute__((cdecl)) kswitchstack(uptr stack_top, void* next_ins);
 
 void mmu_arch_init(u32 optional_features);
 void mmu_frame_bmp_reserve_bmp_region();
@@ -97,25 +103,25 @@ void kmemmap()
     paddr_t text_phys_start = mmu_vtop((vaddr_t)&__text_start);
     mmu_vmem_alloc(&__text_start, text_size, MMU_VMA_R | MMU_VMA_X | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)text_phys_start);
     
-    usize rodata_size = ((usize)&__rodata_end) - ((usize)&__rodata_start);
-    paddr_t rodata_phys_start = mmu_vtop((vaddr_t)&__rodata_start);
-    mmu_vmem_alloc(&__rodata_start, text_size, MMU_VMA_R | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)rodata_phys_start);
-
     // Everything else is RW
     usize data_size = ((usize)&__data_end) - ((usize)&__data_start);
     paddr_t data_phys_start = mmu_vtop((vaddr_t)&__data_start);
     mmu_vmem_alloc(&__data_start, data_size, MMU_VMA_R | MMU_VMA_W | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)data_phys_start);
     
+    usize rodata_size = ((usize)&__rodata_end) - ((usize)&__rodata_start);
+    paddr_t rodata_phys_start = mmu_vtop((vaddr_t)&__rodata_start);
+    mmu_vmem_alloc(&__rodata_start, rodata_size, MMU_VMA_R | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)rodata_phys_start);
+
     usize bss_size = ((usize)&__bss_end) - ((usize)&__bss_start);
     paddr_t bss_phys_start = mmu_vtop((vaddr_t)&__bss_start);
     mmu_vmem_alloc(&__bss_start, bss_size, MMU_VMA_R | MMU_VMA_W | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)bss_phys_start);
     
-    usize stack_size = mmu_align_up((usize)&__stack_end, PAGE_SIZE) - mmu_align_down((usize)&__stack_start, PAGE_SIZE);
-    paddr_t stack_phys_start = mmu_align_down(mmu_vtop((vaddr_t)&__stack_start), PAGE_SIZE);
     // TODO: Add flags for stack because it grows down instead of up
     // Actually, it's an obligation now. Otherwise, triple fault will occur.
-    kdebugf(DEBUG_INFO, MODULE_KRNL, "Stack start: 0x%x, end: 0x%x, size: %x\n", (usize)&__stack_start, (usize)&__stack_end, stack_size);
-    mmu_vmem_alloc(&__stack_start, stack_size, MMU_VMA_R | MMU_VMA_W | MMU_VMA_FIXED | MMU_VMA_PHYS, (void*)stack_phys_start);
+
+    // Switch over from bootstrap stack to new stack allocated from the VMM
+    kernel_data.kernel_stack_bot = (uptr)mmu_vmem_alloc((void*)KERNEL_BASE, DEFAULT_STACK_SIZE, MMU_VMA_R | MMU_VMA_W | MMU_VMA_ANON, NULL);
+    kernel_data.kernel_stack_top = kernel_data.kernel_stack_bot+DEFAULT_STACK_SIZE;
     
     // Now after everything has been mapped, wait for other components to initialize and
     // and map its region, then we can enable paging
@@ -124,14 +130,17 @@ void kmemmap()
 void kmmustart()
 {
     mmu_enable_features();
+}
 
+void kmmustage2()
+{
     u64 mem_size = mmu_get_total_size();
-        u64 usable, hole, reserved, other;
-    usable = mmu_get_zone_size(MMU_ZONE_FREE);
-    reserved = mmu_get_zone_size(MMU_ZONE_HW_RESERVED);
-    hole = mmu_get_zone_size(MMU_ZONE_HOLE);
-    other= mmu_get_zone_size(MMU_ZONE_OTHER);
-
+    u64 usable, hole, reserved, other;
+        usable = mmu_get_zone_size(MMU_ZONE_FREE);
+        reserved = mmu_get_zone_size(MMU_ZONE_HW_RESERVED);
+        hole = mmu_get_zone_size(MMU_ZONE_HOLE);
+        other= mmu_get_zone_size(MMU_ZONE_OTHER);
+    
     kdebugf(DEBUG_INFO, MODULE_KRNL, "MMU initialized successfully\n");
     kdebugf(DEBUG_INFO, MODULE_KRNL, "Additional info:\n"
         "\tMMU components located at 0x%x\n"
@@ -149,7 +158,8 @@ void kmmustart()
         other,
         kernel_data.kernel_size
     );
-
+    
+    
     mmu_init_stage2(KERNEL_BASE);
 }
 
@@ -221,6 +231,7 @@ void kintstart()
     kdebugf(DEBUG_INFO, MODULE_KRNL, "ISR installed\n");
 }
 
+void kstage2();
 void kstart(boot_info_t* boot_inf)
 {
     debug_console_init();
@@ -250,18 +261,33 @@ void kstart(boot_info_t* boot_inf)
     kintstart();
     kmmustart();
 
-    // boot_prepare_acpi();
+    memset((void*)kernel_data.kernel_stack_bot, 0, DEFAULT_STACK_SIZE);
+    kswitchstack(kernel_data.kernel_stack_top, kstage2);
 
-    // peripherals_init();
-    
-    // // Set up timer for sleep()
-    // ktime_init();
-    
-    // // Set up storage
-    // disk_init();
-    
-    // // Set up scheduling for multitasking
-    // // scheduling_init();
-    
 end:    for (;;);
+}
+
+void kstage2()
+{
+    kmmustage2();
+
+    //TESTING HEAP
+    usize size = 8;
+
+    while (size <= 2048)
+    {
+        void* p[3];
+        p[0] = mmu_heap_alloc(size-1);
+        p[1] = mmu_heap_alloc(size);
+        p[2] = mmu_heap_alloc(size+1);
+
+        mmu_heap_free(p[0]);
+        mmu_heap_free(p[1]);
+        mmu_heap_free(p[2]);
+
+        kdebugf(DEBUG_INFO, MODULE_KRNL, "%u-byte alloc done\n\n", size);
+        size<<=1;
+    }
+end:
+    for (;;);
 }

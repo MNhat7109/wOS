@@ -10,7 +10,6 @@ section .entry
 extern kstart
 extern __start
 extern __end
-extern __stack_end
 
 global id_start
 
@@ -78,7 +77,7 @@ section .text align=4096
 
 post_paging_setup:
     ; Stack setup
-    mov esp, __stack_end
+    mov esp, stack_top
 
     mov ebx, [boot_info_ptr]
     ; Save params passed by bootloader
@@ -138,3 +137,9 @@ boot_info_block: times 20 db 0
 fb_block: times 32 db 0
 font_block: times 8 db 0
 sdp_block: times 16 db 0
+
+section .stack align=16
+
+stack_bot:
+    resb 0x8000
+stack_top:

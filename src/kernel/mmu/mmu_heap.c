@@ -1,104 +1,159 @@
 #include <kernel/mmu_heap.h>
+#include <kernel/mmu_heap_defs.h>
 #include <kernel/mmu_vmem.h>
 #include <kernel/mmu.h>
-#include <kernel/kernel_defs.h>
-#include <bitmap.h>
+#include <kernel/debug.h>
 
-#define MAX_SIZE_CLASS_CNT 9
-#define MIN_HEAP_ORDER 0
-#define MAX_HEAP_ORDER 8
-#define MAGIC_MARK 0xBADD1E6F
-
-typedef struct mmu_heap_node_t mmu_heap_node_t;
-
-typedef enum
-{
-    MMU_HEAP_PARTIAL,
-    MMU_HEAP_USED,
-    MMU_HEAP_FREE,
-} mmu_heap_status_t;
-
-typedef struct mmu_heap_node_t
-{
-    u32 magic;
-    mmu_heap_node_t* prev;
-    mmu_heap_node_t* next;
-    u32 block_size;
-    u32 heap_size;
-    u32 avail_cnt;
-    int list_type;
-    u64* cur_free_qword;
-    bitmap_t bmp;
-} mmu_heap_node_t;
-
-typedef mmu_heap_node_t* mmu_heap_list_t[MAX_SIZE_CLASS_CNT];
+struct mmu_heap_shared_data_t mmu_heap_shared_data;
 
 static struct
 {
-    void* start_range;
+    bool running;
     usize max_size;
-    usize used;
-    mmu_heap_list_t free_head;
-    mmu_heap_list_t used_head;
-    mmu_heap_list_t partial_head;
+    usize footprint;
 } mmu_heap_data;
 
 u32 mmu_ceillog2(u64 x);
 
 int mmu_heap_init(void* starting_addr, usize starting_size)
 {
-    mmu_heap_data.start_range = starting_addr;
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Initializing heap...\n");
+    mmu_heap_shared_data.start_range = starting_addr;
     mmu_heap_data.max_size = starting_size;
+    mmu_heap_data.running = true;
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Initialized heap\n");
 }
 
-void mmu_heap_add_chunk_to_list(mmu_heap_list_t list, usize size_class, mmu_heap_node_t* node)
+bool mmu_heap_status()
+{
+    return mmu_heap_data.running;
+}
+
+void mmu_heap_push_chunk_to_list(mmu_heap_node_t** list, mmu_heap_node_t* node)
 {
     if (!node) return;
-    if (size_class >= MAX_SIZE_CLASS_CNT) return;
 
-    if (list[size_class]) list[size_class]->prev = node;
-    node->next = list[size_class];
-    list[size_class] = node;
+    if (*list == node)
+    {
+        kdebugf(DEBUG_FATAL, MODULE_MMU, "Bugcheck: To-be-added node == list head\n");
+        return;
+    }
+
+    node->prev = NULL;
+    node->next = (*list);
+
+    if (*list) (*list)->prev = node;
+    *list = node;
 }
 
-void mmu_heap_remove_chunk_from_list(mmu_heap_list_t list, usize size_class, mmu_heap_node_t* node)
+void mmu_heap_remove_chunk_from_list(mmu_heap_node_t** list, mmu_heap_node_t* node)
 {
     if (!node) return;
-    if (size_class >= MAX_SIZE_CLASS_CNT) return;
 
-    if (list[size_class] == node) list[size_class] = node->next;
+    // Check if node even belongs to the list, or else we can accidentally remove a node from another list
+    // NOTE: In order to speed things up, I will not be writing a node traversal code for this. Instead, I can check if certain properties of the node match with the head's.
+    // This, unfortunately, can be a problem if either one or more of said properties are modifiable (like a status/owner field), and that such properties are modified BEFORE removing the node from the list.
 
-    if (node->prev) node->prev->next = node->next;
-    if (node->next) node->next->prev = node->prev;
+    if ((*list)->magic != node->magic) return;
+
+    if ((*list)->magic == HEAP_MAGIC_MARK &&
+     (*list)->impl.heap.list_type != node->impl.heap.list_type) return;
+
+    if (node->prev) 
+    {
+        node->prev->next = node->next;
+    }
+    else 
+    {
+        *list = node->next;
+    }
+
+    if (node->next) 
+    {
+        node->next->prev = node->prev;
+    }
+    else 
+    {
+        *list = node->prev;
+    }
+
+    node->prev = NULL;
+    node->next = NULL;
 }
 
-void mmu_heap_pop_chunk_from_list(mmu_heap_list_t list, usize size_class)
+mmu_heap_node_t* mmu_heap_register_vmm_region(void* start_addr, void* vmm_addr, usize size)
 {
-    if (size_class >= MAX_SIZE_CLASS_CNT) return;
+    // Align size to 4K before doing absolutely anything else
+    size = mmu_align_up(size, PAGE_SIZE);
 
-    mmu_heap_node_t* node = list[size_class];
-    mmu_heap_remove_chunk_from_list(list, size_class, node);
+    // Allocate a page from the VMM for header
+    mmu_heap_node_t* hdr = mmu_vmem_alloc(start_addr, PAGE_SIZE, MMU_VMA_ANON | MMU_VMA_R | MMU_VMA_W, NULL);
+    if (hdr == ADDR_INVAL)
+    {
+        // OOM on the VMM side. Therefore, it'll be pointless to continue to the real allocation process
+        kdebugf(DEBUG_CRITICAL, MODULE_MMU, "VMM said OOM. Can't continue.\n");
+        return NULL;
+    }
+
+    // Populate header with info:
+    // - magic DWORD: VMM_MAGIC_MARK
+    // - next, prev: Let's keep this as a linked list, of regions of course
+    // - block size = heap size = size
+    // - the rest is heap-specific, so reserved
+
+    hdr->magic = VMM_MAGIC_MARK;
+    hdr->prev = hdr->next = NULL;
+    hdr->block_size = hdr->heap_size = size;
+    hdr->impl.vmm_region.address = vmm_addr;
+
+    // Maybe add to another linked list?
+    mmu_heap_push_chunk_to_list(&mmu_heap_shared_data.vmm_region_head, hdr);
+
+    // Return the node (more like a header that tells how many bytes the heap requests)
+    return hdr;
+}
+
+void mmu_heap_unregister_vmm_region(mmu_heap_node_t* node)
+{
+    if (!node) return;
+    if (node->magic != VMM_MAGIC_MARK) return;
+
+    // Need to do 3 things:
+    // - Free the actual region
+    // - Unlink the node from the linked list
+    // - Free the header, or else there will be a black hole
+
+    mmu_heap_remove_chunk_from_list(&mmu_heap_shared_data.vmm_region_head, node);
+    mmu_vmem_free(node);
 }
 
 mmu_heap_node_t* mmu_heap_spawn_chunk(void* start_addr, usize heap_len, usize block_size)
 {
-    if (mmu_heap_data.used >= mmu_heap_data.max_size)
-    {
-        // TODO
-    }
-    
+    heap_len = mmu_align_up(heap_len, PAGE_SIZE);
     usize order = mmu_ceillog2((u64)block_size);
     block_size = (usize)(1<<order);
     usize size_class_idx = order - 3;
+    bool expanded=false;
     
-    mmu_heap_node_t* node = mmu_heap_data.free_head[0];
+    if (mmu_heap_data.footprint >= mmu_heap_data.max_size)
+    {
+        if (mmu_heap_data.max_size+heap_len > MAX_HEAP_SIZE)
+        {
+            kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Heap limit exceeded\n");
+            return NULL;
+        }
+        mmu_heap_data.max_size+=heap_len;
+        expanded = true;
+    }
+    
+    mmu_heap_node_t* node = mmu_heap_shared_data.free_head;
     if (!node)
     {
         // VMM, gimme a range of size (heap_len+page)
-        heap_len = mmu_align_up(heap_len, PAGE_SIZE);
         void* chunk = mmu_vmem_alloc(start_addr, heap_len+PAGE_SIZE, MMU_VMA_ANON | MMU_VMA_R | MMU_VMA_W, NULL);
-        if (!chunk)
+        if (chunk == ADDR_INVAL)
         {
+            if (expanded) mmu_heap_data.max_size-=heap_len; // Roll back
             return NULL;
         }
         node = (mmu_heap_node_t*)chunk;
@@ -106,16 +161,23 @@ mmu_heap_node_t* mmu_heap_spawn_chunk(void* start_addr, usize heap_len, usize bl
 
     node->next = NULL;
     node->prev = NULL;
-    node->magic = MAGIC_MARK;
+    node->magic = HEAP_MAGIC_MARK;
     node->heap_size = heap_len;
     node->block_size = block_size;
     node->avail_cnt = heap_len/block_size; //
-    node->list_type = MMU_HEAP_FREE;
+    node->impl.heap.list_type = MMU_HEAP_FREE;
     u8* bmp_buf = (u8*)node+sizeof(mmu_heap_node_t);
-    bitmap_init(&node->bmp, bmp_buf, node->avail_cnt);
-    node->cur_free_qword = &((u64*)bmp_buf)[0];
+    bitmap_init(&node->impl.heap.bmp, bmp_buf, node->avail_cnt);
+    node->impl.heap.cur_free_qword = ((u64*)bmp_buf);
 
-    mmu_heap_data.used += heap_len+PAGE_SIZE;
+    // Add to free list, please. This way, it will ensure that the chunks are updated properly
+    if (!mmu_heap_shared_data.free_head)
+    {
+        mmu_heap_push_chunk_to_list(&mmu_heap_shared_data.free_head, node);
+        mmu_heap_register_vmm_region(start_addr, node, 2*PAGE_SIZE);
+        mmu_heap_data.footprint += heap_len;
+    }
+
 
     return node;
 }
@@ -125,125 +187,40 @@ void mmu_heap_update_chunk_list(mmu_heap_node_t* node)
     if (!node) return;
 
     usize size_class = mmu_ceillog2((u64)node->block_size) - 3;
+    
+    mmu_heap_node_t** lists[] = {
+        &mmu_heap_shared_data.partial_head[size_class], &mmu_heap_shared_data.used_head[size_class], &mmu_heap_shared_data.free_head
+    };
 
-    mmu_heap_list_t lists[] = {mmu_heap_data.partial_head, mmu_heap_data.used_head, mmu_heap_data.free_head};
-    usize sizes[] = { size_class, size_class, 0};
-
-    int src_list = node->list_type, dst_list = -1;
+    int src_list = node->impl.heap.list_type, dst_list = -1;
 
     if (node->avail_cnt == 0)
     {
         dst_list = MMU_HEAP_USED;
     }
-    if (node->avail_cnt > 0 && node->avail_cnt<node->bmp.bit_count)
+    if (node->avail_cnt > 0 && node->avail_cnt<node->impl.heap.bmp.bit_count)
     {
         dst_list = MMU_HEAP_PARTIAL;
     }
-    if (node->avail_cnt == node->bmp.bit_count)
+    if (node->avail_cnt == node->impl.heap.bmp.bit_count)
     {
         dst_list = MMU_HEAP_FREE;
     }
 
     if (src_list == dst_list) return;
 
-    mmu_heap_remove_chunk_from_list(lists[src_list], sizes[src_list], node);
-    mmu_heap_add_chunk_to_list(lists[dst_list], sizes[dst_list], node);
-}
-
-void mmu_heap_get_next_free_qword(mmu_heap_node_t* node)
-{
-    usize qword_cnt = mmu_align_up(node->bmp.bit_count, 64) / 64;
-    usize cur_idx = (node->cur_free_qword-(u64*)node->bmp.buffer);
-    for (usize i=0; i<qword_cnt;i++)
     {
-        u64* qword_ptr = ((u64*)node->bmp.buffer)+((cur_idx+i)%qword_cnt);
-
-        if (*qword_ptr != (u64)~0)
-        {
-            node->cur_free_qword = qword_ptr;
-            return;
-        }
+        const char* disp[] = {"PARTIAL", "USED", "FREE"};
+        kdebugf(DEBUG_INFO, MODULE_MMU, "Changing status of chunk 0x%p: %s -> %s\n", node, disp[src_list], disp[dst_list]);
     }
 
-    node->cur_free_qword = NULL;
-}
+    mmu_heap_remove_chunk_from_list(lists[src_list], node);
+    mmu_heap_push_chunk_to_list(lists[dst_list], node);
 
-mmu_heap_node_t* mmu_heap_find_header(void* ptr)
-{
-    
-}
+        kdebugf(DEBUG_INFO, MODULE_MMU, "current list=0x%p -> new list=0x%p\n", *lists[src_list], *lists[dst_list]);
 
-void* mmu_heap_alloc(usize size)
-{
-    if (!size) return NULL;
+    // NOTE: Don't put this code before removing the node from the list. Because there is a HACK in the node removal function itself, doing so will nullify the HACK and therefore, create bugs.
+    // (see mmu_heap_remove_chunk_from_list())
 
-    // If the requested size is too big, gotta ask the VMM directly for free memory
-    // Also have to let the heap know that the chunk is from the VMM.
-    if (size >= (1<<(MAX_HEAP_ORDER+3)))
-    {
-        // Register a "region" so that the VMM passthrough is kept track of.
-    }
-
-    // Round up if the requested size is less than the minimum block size
-    if (size < (1<<(MIN_HEAP_ORDER+3))) size = (1<<(MIN_HEAP_ORDER+3));
-
-    // Obtain chunks eligible for allocation
-    usize order = mmu_ceillog2((u64)size);
-    usize size_class_idx = order - 3;
-
-    mmu_heap_node_t* node = mmu_heap_data.partial_head[size_class_idx];
-    if (node) goto next_step;
-    node = mmu_heap_spawn_chunk(mmu_heap_data.start_range, PAGE_SIZE, size);
-    if (!node) return NULL;
-next_step:
-    // Mark bit as used in bitmap
-    if (node->avail_cnt == 0)
-    {
-        // Bugcheck, cause why would a full chunk be either in the free or partial list?
-        return NULL;
-    }
-    usize idx = __builtin_ctzll(~*node->cur_free_qword);
-    bitmap_set(&node->bmp, idx);
-    node->avail_cnt--;
-
-    // Assign next free bit
-    if (*node->cur_free_qword == (u64)~0)
-    {
-        mmu_heap_get_next_free_qword(node);
-    }
-
-    // Update chunk after marking. 
-    mmu_heap_update_chunk_list(node);
-
-    // Return the pointer
-    return (u8*)node+PAGE_SIZE+idx*node->block_size;
-}
-
-void mmu_heap_free(void* ptr)
-{
-    // Find the header in which the pointer resides
-
-    mmu_heap_node_t* node = mmu_heap_find_header(ptr);
-    if (!node)
-    {
-        // Heap does not own this chunk, or at least acknowledge it as a VMM chunk
-        return;
-    }
-
-    // Find the bit position the pointer resides
-    u8* user_data = (u8*)node+PAGE_SIZE;
-    usize bit_pos = ((u8*)ptr-user_data)/node->block_size;
-
-    // Clear the bit if set, freak out otherwise.
-    if (bitmap_get(&node->bmp, bit_pos) == 0)
-    {
-        // error!
-        return;
-    }
-
-    bitmap_clear(&node->bmp, bit_pos);
-    node->avail_cnt++;
-
-    // Update the chunk status (Set status, move chunk to another list etc.)
-    mmu_heap_update_chunk_list(node);
+    node->impl.heap.list_type = dst_list;
 }

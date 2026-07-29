@@ -1,6 +1,6 @@
 #include <kernel/mmu.h>
 #include <kernel/mmu_frame.h>
-#include <kernel/mmu_vmem.h>
+#include <kernel/mmu_heap.h>
 #include <kernel/mmu_other.h>
 #include <kernel/debug.h>
 
@@ -20,7 +20,6 @@ int mmu_init(uptr start_addr, memory_info_t* mem_map)
     mmu_data.mmu_start_addr = mmu_align_up(start_addr, PAGE_SIZE);
 
     mmu_recompute_mem_size(mem_map);
-    mmu_vmem_init(); // TODO
 
     // Init frame allocator
     kdebugf(DEBUG_INFO, MODULE_MMU, "Start addr: 0x%x\n", mmu_data.mmu_start_addr);
@@ -37,6 +36,6 @@ int mmu_init_stage2(uptr starting_range)
     if (status < 0) return -1;
     
     // Heap kickstart
-    // TODO
+    mmu_heap_init((void*)starting_range, PAGE_SIZE*10);
     return 0;
 }

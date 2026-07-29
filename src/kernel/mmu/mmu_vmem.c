@@ -1,8 +1,13 @@
 #include <kernel/mmu.h>
+#include <kernel/mmu_other.h>
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_vmem.h>
 #include <kernel/mmu_paging.h>
 #include <kernel/debug.h>
+#include <stdbool.h>
+
+#define MMU_VMEM_MAX_VMA_ENTRY 4096
+#define MMU_VMEM_ADDR_INVAL ADDR_INVAL
 
 typedef struct mmu_vma_range_t
 {
@@ -21,32 +26,51 @@ typedef struct mmu_vma_ptr_t
 static struct
 {
     mmu_vma_ptr_t* head;
+    vaddr_t tail_addr;
     int range_count;
-    mmu_vma_ptr_t pool[128];
+    usize vma_node_region_size;
+    mmu_vma_ptr_t pool[MMU_VMEM_MAX_VMA_ENTRY];
 } mmu_vma_data;
 
 int mmu_vmem_interpret_flags(int flags);
 usize mmu_vmem_get_page_size(int flags);
 
-vaddr_t mmu_vmem_find_space(vaddr_t min_range, usize length, u8 strict, mmu_vma_ptr_t** prev, mmu_vma_ptr_t** cur);
+vaddr_t mmu_vmem_find_space(vaddr_t min_range, usize length, mmu_vma_ptr_t** prev, mmu_vma_ptr_t** cur);
+vaddr_t mmu_vmem_check_space(vaddr_t start_va, usize length, mmu_vma_ptr_t** prev, mmu_vma_ptr_t** cur);
 
 mmu_vma_ptr_t* mmu_vmem_spawn(vaddr_t vaddr_start, vaddr_t vaddr_end, int flags);
 void mmu_vmem_despawn(mmu_vma_ptr_t* ptr);
 
-void mmu_vmem_init(){}
+void mmu_vmem_init(uptr tail_addr)
+{
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Starting up VMM...\n");
+    mmu_vma_data.tail_addr = tail_addr;
+    // TODO: For later, when there's an opportunity to reserve 4M for VMA region in linker script
+    mmu_vma_data.vma_node_region_size = 4*1024*1024;
+    kdebugf(DEBUG_INFO, MODULE_MMU, "VMM started up\n");
+}
 
 void* mmu_vmem_alloc(void* addr, usize len, int flags, void* args)
 {
     addr = (void*)mmu_align_down((vaddr_t)addr, PAGE_SIZE);
     len = mmu_align_up(len, PAGE_SIZE);
 
-    kdebugf(DEBUG_INFO, MODULE_MMU, "Creating VMA range: va=0x%x, len=0x%x...\n", addr, len);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Creating VMA range: start_va=0x%x, len=0x%x...\n", addr, len);
     
     mmu_vma_ptr_t* prev = NULL, *cur = NULL;
-    vaddr_t va = mmu_vmem_find_space((vaddr_t)addr, len, (flags&MMU_VMA_FIXED), &prev, &cur);
+    vaddr_t va = (flags&MMU_VMA_FIXED)?
+    mmu_vmem_check_space((vaddr_t)addr, len, &prev, &cur):
+    mmu_vmem_find_space((vaddr_t)addr, len, &prev, &cur);
+
+    if (va == MMU_VMEM_ADDR_INVAL)
+    {
+        return (void*)MMU_VMEM_ADDR_INVAL;
+    }
+
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Found VMA range: va=0x%x, len=0x%x.\n", va, len);
     
     mmu_vma_ptr_t* new_vma = mmu_vmem_spawn(va, va+len, flags);
-    if (!new_vma) return NULL;
+    if (!new_vma) return (void*)MMU_VMEM_ADDR_INVAL;
 
     if (!prev)
         mmu_vma_data.head = new_vma;
@@ -63,7 +87,7 @@ void* mmu_vmem_alloc(void* addr, usize len, int flags, void* args)
         kdebugf(DEBUG_INFO, MODULE_MMU, "Range is used for anonymous memory. Allocating from the PMM...\n");
         // PMM!!!!!!!
         pa = mmu_frame_alloc(pc);
-        if (!pa) return NULL;
+        if (!pa) return (void*)MMU_VMEM_ADDR_INVAL;
     }
     else if ((flags & MMU_VMA_MMIO) || (flags & MMU_VMA_PHYS))
     {
@@ -78,6 +102,7 @@ void* mmu_vmem_alloc(void* addr, usize len, int flags, void* args)
     {
         mmu_map_page(va+i*PAGE_SIZE, pa+i*PAGE_SIZE, page_attr);
     }
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Finished\n");
 
     return (void*)va;
 }
@@ -85,16 +110,19 @@ void* mmu_vmem_alloc(void* addr, usize len, int flags, void* args)
 void mmu_vmem_free(void* addr)
 {
     vaddr_t vaddr_start = mmu_align_down((vaddr_t)addr, PAGE_SIZE);
+    kdebugf(DEBUG_INFO, MODULE_MMU, "Freeing VMA range: start_va=0x%x...\n", vaddr_start);
     mmu_vma_ptr_t* found = NULL, *prev= NULL;
     for (mmu_vma_ptr_t* ptr = mmu_vma_data.head; ptr != NULL; ptr=ptr->next)
     {
         if (vaddr_start >= ptr->range.start_vaddr && vaddr_start < ptr->range.end_vaddr)
         {
+            kdebugf(DEBUG_INFO, MODULE_MMU, "Found range at start_va=0x%x, end_va=0x%x...\n", ptr->range.start_vaddr, ptr->range.end_vaddr);
             found = ptr;
             break;
         }
-        prev = found;
+        prev = ptr;
     }
+    
     if (!found)
     {
         return;
@@ -122,45 +150,77 @@ void mmu_vmem_free(void* addr)
     mmu_vmem_despawn(found);
 }
 
-vaddr_t mmu_vmem_find_space(vaddr_t min_range, usize length, u8 strict, mmu_vma_ptr_t** prev, mmu_vma_ptr_t** cur)
+vaddr_t mmu_vmem_find_space(vaddr_t min_range, usize length, mmu_vma_ptr_t** prev, mmu_vma_ptr_t** cur)
 {
+    if (!mmu_vma_data.head) return min_range;
+
+    *cur = mmu_vma_data.head;
+    uptr desired = 0;
+
+    for (; *cur != NULL; *cur = (*cur)->next)
+    {
+        desired = *prev?(*prev)->range.end_vaddr:0; 
+
+        if (desired >= min_range && (*cur)->range.start_vaddr - desired >= length)
+        {
+            kdebugf(DEBUG_INFO, MODULE_MMU, "Found. base=0x%x\n", desired);
+            break;
+        }
+        *prev = *cur;
+    }
+
+    desired = (*prev)->range.end_vaddr;
+    if (mmu_vma_data.tail_addr - desired >= length) return desired;
+    return MMU_VMEM_ADDR_INVAL;
+}
+
+vaddr_t mmu_vmem_check_space(vaddr_t start_va, usize length, mmu_vma_ptr_t** prev, mmu_vma_ptr_t** cur)
+{
+    if (!mmu_vma_data.head) return start_va;
+
     *cur = mmu_vma_data.head;
 
     for (; *cur != NULL; *cur = (*cur)->next)
     {
         uptr base = *prev?(*prev)->range.end_vaddr:0; 
-        u8 ok = strict?base==min_range:base>=min_range;
-        if (ok && base + length < (*cur)->range.start_vaddr)
+        
+        if (base > start_va) break;
+        if (start_va + length <= (*cur)->range.start_vaddr)
         {
-            return base;
+            kdebugf(DEBUG_INFO, MODULE_MMU, "Found. base=0x%x\n", start_va);
+            return start_va;
         }
+
         *prev = *cur;
     }
 
-    return min_range;
+    return MMU_VMEM_ADDR_INVAL;
 }
 
 mmu_vma_ptr_t* mmu_vmem_spawn(vaddr_t vaddr_start, vaddr_t vaddr_end, int flags)
 {
-    // TODO: Integrate heap later when heap is set up
+    mmu_vma_ptr_t* ptr = NULL;
 
-    if (mmu_vma_data.range_count>=128)
+    if (mmu_vma_data.range_count>=MMU_VMEM_MAX_VMA_ENTRY)
     {
-        // TODO: Maybe we need a panic function?
+        kdebugf(DEBUG_CRITICAL, MODULE_MMU, "Out of free VMAs\n");
         return NULL;
     }
 
-    mmu_vma_data.pool[mmu_vma_data.range_count] = (mmu_vma_ptr_t){
+    ptr = &mmu_vma_data.pool[mmu_vma_data.range_count++];
+
+populate:
+    *ptr = (mmu_vma_ptr_t){
         .range = {
             .start_vaddr = vaddr_start,
             .end_vaddr = vaddr_end,
             .flags = flags
-        }
+        },
     };
-    return &mmu_vma_data.pool[mmu_vma_data.range_count++];
+    kdebugf(DEBUG_INFO, MODULE_MMU, "ptr=0x%x, start=0x%x, end=0x%x...\n", ptr, ptr->range.start_vaddr, ptr->range.end_vaddr);
+    return ptr;
 }
 
 void mmu_vmem_despawn(mmu_vma_ptr_t* ptr)
 {
-
 }

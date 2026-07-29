@@ -38,8 +38,6 @@ paddr_t mmu_walk_page_table_non_pae(vaddr_t vaddr);
 
 int mmu_map_page_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
 {
-    kdebugf(DEBUG_INFO, "MMU", "Mapping 0x%llx, va=0x%x\n", paddr, vaddr);
-
     // The page directory is an array of 1024 entries
     // Each of these entries is one complete page table
     // Similarly, each of the page tables consists of 1024 entries
@@ -54,7 +52,6 @@ int mmu_map_page_non_pae(vaddr_t vaddr, paddr_t paddr, u32 attributes)
     
     u32 pd_index = PD_INDEX(vaddr);
     u32 page_index = PAGE_INDEX(vaddr);
-    kdebugf(DEBUG_INFO, "MMU", "Page idx: %x\n", page_index);
     
     u32* page_table;
     u32 pd_entry = PD[pd_index]; // Obtain page table at index pd_index

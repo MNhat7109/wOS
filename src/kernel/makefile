@@ -25,6 +25,7 @@ ASMOBJS += $(patsubst $(KERNEL_SRC_DIR)/%.asm, $(KERNEL_BUILD_DIR)/asm/%.o, $(AS
 
 BIN = $(KERNEL_BUILD_DIR)/kernel.elf
 LIBC = $(LIBC_BUILD_DIR)/libc.a
+LIBDS = $(LIBDS_BUILD_DIR)/libds.a
 
 .PHONY: run
 
@@ -35,8 +36,10 @@ link: $(ASMOBJS) $(COBJS)
 	$(TARGET_CC) \
 	$(TARGET_LDFLAGS) \
 	-L$(LIBC_BUILD_DIR) \
+	-L$(LIBDS_BUILD_DIR) \
 	-Wl,-Map=$(KERNEL_BUILD_DIR)/kernel.map \
 	-o $(BIN) $^ \
+	-l:$(patsubst $(LIBDS_BUILD_DIR)/%,%,$(LIBDS)) \
 	-l:$(patsubst $(LIBC_BUILD_DIR)/%,%,$(LIBC)) \
 	-lgcc 
 
@@ -50,10 +53,16 @@ $(KERNEL_BUILD_DIR)/c/%.o: $(KERNEL_SRC_DIR)/%.c
 	mkdir -p $(@D)
 	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $^ -I$(INC_DIR)
 
-libs: libc
+libs: libc libds
 
 libc: $(LIBC)
 
 $(LIBC):
 	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Compiling libc...\n"
 	$(MAKE) -C $(LIBC_DIR)/
+
+libds: $(LIBDS)
+
+$(LIBDS):
+	@printf "$(KERNEL_COLORSTART)[KERNEL]$(KERNEL_COLOREND): Compiling libds...\n"
+	$(MAKE) -C $(LIBDS_DIR)/

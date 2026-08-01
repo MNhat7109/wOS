@@ -27,11 +27,13 @@ export SRC_DIR = $(abspath src)
 export BUILD_DIR = $(abspath build)
 export SCRIPT_DIR = $(abspath build_scripts)
 export LIBC_DIR = $(abspath libc)
+export LIBDS_DIR = $(abspath libds)
 export BASE_DIR = $(abspath rootfs)
 
 export BOOT_BUILD_DIR = $(BUILD_DIR)/bootloader
 export KERNEL_BUILD_DIR = $(BUILD_DIR)/kernel
 export LIBC_BUILD_DIR = $(BUILD_DIR)/libc
+export LIBDS_BUILD_DIR = $(BUILD_DIR)/libds
 
 export ROOT_DIR = $(BASE_DIR)/root
 export INC_DIR = $(ROOT_DIR)/usr/include

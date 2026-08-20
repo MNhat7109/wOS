@@ -1,5 +1,5 @@
-SHARED_COLORSTART = \e[36m
-SHARED_COLOREND = \e[0m
+LIBDS_INC_DIR=$(INC_DIR)/ds
+LIBDS_INTERNAL_INC_DIR=$(LIBDS_INC_DIR)/internals
 
 LIBNAME=libds
 
@@ -18,15 +18,15 @@ run: archive
 archive: $(STATIC_LIB)
 
 $(STATIC_LIB): $(COBJS)
-	@printf "$(SHARED_COLORSTART)[LIBDS]$(SHARED_COLOREND): Archiving...\n"
+	@printf "[LIBDS]: Archiving...\n"
 	mkdir -p $(@D)
 	$(TARGET_AR) qc $@ $^
 	$(TARGET_RANLIB) $@
 
 $(LIBDS_BUILD_DIR)/c/%.o: $(LIBDS_DIR)/%.c
-	@printf "$(SHARED_COLORSTART)[LIBDS]$(SHARED_COLOREND): Compiling $^\n"
+	@printf "[LIBDS]: Compiling $^\n"
 	@mkdir -p $(@D)
-	$(TARGET_CC) $(TARGET_CFLAGS) -c $^ -o $@ -I$(INC_DIR)/ds
+	$(TARGET_CC) $(TARGET_CFLAGS) -g -c $^ -o $@ -I$(LIBDS_INC_DIR) -I$(LIBDS_INTERNAL_INC_DIR)
 
 always:
 	@mkdir -p $(LIBDS_BUILD_DIR)

@@ -32,10 +32,10 @@ void ds_list_node_init(ds_list_node_t* node)
 
 int ds_list_push_front(ds_list_t* list, ds_list_node_t* node)
 {
-    if (!node) return -1;
-    if (!list) return -1;
+    if (!node) return DS_STATUS_INVALID_INPUT;
+    if (!list) return DS_STATUS_INVALID_INPUT;
     int status = ds_list_verify_node(list, node);
-    if (status & DS_VERIFY_OWNED) return -1;
+    if (status & DS_VERIFY_OWNED) return DS_STATUS_INVALID_INPUT;
 
     if (list->head) list->head->prev = node;
     node->next = list->head;
@@ -43,15 +43,15 @@ int ds_list_push_front(ds_list_t* list, ds_list_node_t* node)
     if (!list->tail) list->tail = node;
 
     node->list = list;
-    return 0;
+    return DS_STATUS_SUCCESS;
 }
 
 int ds_list_push_back(ds_list_t* list, ds_list_node_t* node)
 {
-    if (!node) return -1;
-    if (!list) return -1;
+    if (!node) return DS_STATUS_INVALID_INPUT;
+    if (!list) return DS_STATUS_INVALID_INPUT;
     int status = ds_list_verify_node(list, node);
-    if (status & DS_VERIFY_OWNED) return -1;
+    if (status & DS_VERIFY_OWNED) return DS_STATUS_INVALID_INPUT;
 
     if (list->tail) list->tail->next = node;
     node->prev = list->tail;
@@ -59,19 +59,19 @@ int ds_list_push_back(ds_list_t* list, ds_list_node_t* node)
     if (!list->head) list->head = node;
 
     node->list = list;
-    return 0;
+    return DS_STATUS_SUCCESS;
 }
 
 int ds_list_insert_back_of(ds_list_t* list, ds_list_node_t* pos, ds_list_node_t* node)
 {
-    if (!list) return -1;
-    if (!pos) return -1;
-    if (!node) return -1;
+    if (!list) return DS_STATUS_INVALID_INPUT;
+    if (!pos) return DS_STATUS_INVALID_INPUT;
+    if (!node) return DS_STATUS_INVALID_INPUT;
     int status = ds_list_verify_node(list, pos);
-    if (status == DS_VERIFY_VACANT || (status & DS_VERIFY_DIFF_OWNER)) return -1;
+    if (status == DS_VERIFY_VACANT || (status & DS_VERIFY_DIFF_OWNER)) return DS_STATUS_INVALID_INPUT;
 
     status = ds_list_verify_node(list, node);
-    if (status & DS_VERIFY_OWNED) return -1;
+    if (status & DS_VERIFY_OWNED) return DS_STATUS_INVALID_INPUT;
 
     if (pos->next)
     {
@@ -84,19 +84,19 @@ int ds_list_insert_back_of(ds_list_t* list, ds_list_node_t* pos, ds_list_node_t*
     node->prev = pos;
 
     node->list = list;
-    return 0;
+    return DS_STATUS_SUCCESS;
 }
 
 int ds_list_insert_front_of(ds_list_t* list, ds_list_node_t* pos, ds_list_node_t* node)
 {
-    if (!list) return -1;
-    if (!pos) return -1;
-    if (!node) return -1;
+    if (!list) return DS_STATUS_INVALID_INPUT;
+    if (!pos) return DS_STATUS_INVALID_INPUT;
+    if (!node) return DS_STATUS_INVALID_INPUT;
     int status = ds_list_verify_node(list, pos);
-    if (status == DS_VERIFY_VACANT || (status & DS_VERIFY_DIFF_OWNER)) return -1;
+    if (status == DS_VERIFY_VACANT || (status & DS_VERIFY_DIFF_OWNER)) return DS_STATUS_INVALID_INPUT;
 
     status = ds_list_verify_node(list, node);
-    if (status & DS_VERIFY_OWNED) return -1;
+    if (status & DS_VERIFY_OWNED) return DS_STATUS_INVALID_INPUT;
 
     if (pos->prev)
     {
@@ -109,17 +109,17 @@ int ds_list_insert_front_of(ds_list_t* list, ds_list_node_t* pos, ds_list_node_t
     node->next = pos;
 
     node->list = list;
-    return 0;
+    return DS_STATUS_SUCCESS;
 }
 
 int ds_list_remove(ds_list_t* list, ds_list_node_t* node)
 {
-    if (!list) return -1;
-    if (!node) return -1;
+    if (!list) return DS_STATUS_INVALID_INPUT;
+    if (!node) return DS_STATUS_INVALID_INPUT;
 
     int status = ds_list_verify_node(list, node);
-    if (status == DS_VERIFY_VACANT) return -1;
-    if (status & DS_VERIFY_DIFF_OWNER) return -1;
+    if (status == DS_VERIFY_VACANT) return DS_STATUS_INVALID_INPUT;
+    if (status & DS_VERIFY_DIFF_OWNER) return DS_STATUS_INVALID_INPUT;
 
     if (node->prev) node->prev->next = node->next;
     else list->head = node->next;
@@ -129,5 +129,5 @@ int ds_list_remove(ds_list_t* list, ds_list_node_t* node)
 
     node->prev = node->next = NULL;
     node->list = NULL;
-    return 0;
+    return DS_STATUS_SUCCESS;
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <binary_tree_defs.h>
+#include "internals/binary_tree_defs.h"
 
 #ifdef __cplusplus
 extern "C" {

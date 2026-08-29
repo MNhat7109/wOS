@@ -1,6 +1,6 @@
 #pragma once
 
-#include <bst_defs.h>
+#include "internals/bst_defs.h"
 
 #ifdef __cplusplus
 extern "C" {

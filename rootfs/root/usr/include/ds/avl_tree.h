@@ -1,5 +1,5 @@
 #pragma once
-#include <bst_defs.h>
+#include "internals/bst_defs.h"
 
 typedef struct ds_avl_tree_node_t ds_avl_tree_node_t;
 

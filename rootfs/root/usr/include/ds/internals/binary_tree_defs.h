@@ -1,5 +1,5 @@
 #pragma once
-#include <ds_internals.h>
+#include "ds_internals.h"
 
 typedef struct ds_binary_tree_node_t ds_binary_tree_node_t;
 typedef struct ds_binary_tree_t ds_binary_tree_t;

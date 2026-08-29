@@ -270,24 +270,6 @@ end:    for (;;);
 void kstage2()
 {
     kmmustage2();
-
-    //TESTING HEAP
-    usize size = 8;
-
-    while (size <= 2048)
-    {
-        void* p[3];
-        p[0] = mmu_heap_alloc(size-1);
-        p[1] = mmu_heap_alloc(size);
-        p[2] = mmu_heap_alloc(size+1);
-
-        mmu_heap_free(p[0]);
-        mmu_heap_free(p[1]);
-        mmu_heap_free(p[2]);
-
-        kdebugf(DEBUG_INFO, MODULE_KRNL, "%u-byte alloc done\n\n", size);
-        size<<=1;
-    }
 end:
     for (;;);
 }

@@ -1,5 +1,5 @@
 #pragma once
-#include <ds_internals.h>
+#include "ds_internals.h"
 
 typedef struct ds_list_t ds_list_t;
 typedef struct ds_list_node_t ds_list_node_t;

@@ -1,3 +1,5 @@
 toolchains
 build/**
 .vscode
+src/files/part1/boot.bin
+src/files/part1/kernel.elf

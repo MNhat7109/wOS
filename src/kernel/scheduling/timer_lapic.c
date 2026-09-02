@@ -3,6 +3,7 @@
 #include "../hal/interrupt/isr.h"
 #include "../devices/cpu/cpu.h"
 #include "../ktime/ktime.h"
+#include "../time.h"
 #include "../stdio.h"
 
 #define LAPIC_TIMER_OFFSET 0x20
@@ -14,7 +15,7 @@ static struct
 } timer_lapic;
 
 static void timer_lapic_set_callback(void (*callback)());
-static void timer_lapic_handler(registers_t* regs);
+static void timer_lapic_handler(registers_t* regs, void* ctx);
 
 bool timer_set_up_lapic(void (*callback)(), u64 ms_per_tick)
 {
@@ -55,12 +56,12 @@ bool timer_set_up_lapic(void (*callback)(), u64 ms_per_tick)
     timer_lapic_set_callback(callback);
     
     // Register the handler
-    ISR_reg_handler(LAPIC_TIMER_OFFSET, timer_lapic_handler);
+    ISR_reg_handler(LAPIC_TIMER_OFFSET, timer_lapic_handler, NULL);
     return true;
 }
 
 
-static void timer_lapic_handler(registers_t* regs)
+static void timer_lapic_handler(registers_t* regs, void*)
 {
     if (timer_lapic.schedule_callback)
     timer_lapic.schedule_callback();

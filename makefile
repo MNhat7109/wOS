@@ -20,6 +20,7 @@ $(BUILD_DIR)/$(OSNAME).img: $(BOOT_DIR)/$(OSNAME)_p1.img $(BOOT_DIR)/mbr/mbr.bin
 	dd if=/dev/zero of=$@ bs=512 count=69632
 	dd if=$(word 2, $^) of=$@ conv=notrunc
 	dd if=$< of=$@ bs=512 seek=2048 conv=notrunc
+	cp $@ $(BUILD_DIR)/$(OSNAME)_clone.img
 
 $(BOOT_DIR)/$(OSNAME)_p1.img: $(BOOT_DIR)/stage1/stage1.bin $(BOOT_DIR)/stage2/stage2.bin $(KRNL_DIR)/kernel.elf
 	dd if=/dev/zero of=$@ bs=512 count=67584

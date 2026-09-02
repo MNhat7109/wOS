@@ -25,4 +25,4 @@ typedef struct acpi_sdt_hdr_t
 
 int acpi_init(system_desc_ptr_t* sdp);
 acpi_sdt_hdr_t* acpi_get_table(char* signature);
-void acpi_invalidate_table(acpi_sdt_hdr_t* tbl);
+// void acpi_invalidate_table(acpi_sdt_hdr_t* tbl);

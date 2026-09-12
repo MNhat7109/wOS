@@ -6,6 +6,10 @@ typedef void (*hw_int_handler_t)(register_state_t* cur_state, void* ctx);
 
 int hw_interrupt_init();
 
+int int_vector_alloc();
+void int_vector_free(int vector, int int_no);
+int int_vector_find(int vector);
+
 void* hw_interrupt_ctx(int int_no);
 
 void hw_interrupt_ack(int int_no);

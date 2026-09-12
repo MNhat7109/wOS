@@ -16,6 +16,11 @@ typedef enum
     CPUID_FUNC_X_GETBRANDSTRINGEND,
 } cpuid_functions_t;
 
+typedef struct cpuid_out_t
+{
+    u32 eax, ebx, ecx, edx;
+} cpuid_out_t;
+
 bool __attribute__((cdecl)) cpuid_check();
-void __attribute__((cdecl)) cpuidex(u32 func, u32 subfunc, u32 cpu_info_out[4]);
-void __attribute__((cdecl)) cpuid(u32 func, u32 cpu_info_out[4]);
+void __attribute__((cdecl)) cpuidex(u32 func, u32 subfunc, cpuid_out_t* cpu_info_out);
+void __attribute__((cdecl)) cpuid(u32 func, cpuid_out_t* cpu_info_out);

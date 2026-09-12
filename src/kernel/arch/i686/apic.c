@@ -1,61 +1,41 @@
 #include <kernel/sys/hw_int_defs.h>
+#include <kernel/sys/hw_interrupt.h>
+#include <kernel/arch/i686/ioapic.h>
 
-#define APIC_REMAP_OFFSET 0x30
-
-int apic_init(struct hw_int_data_t* self)
+void apic_ack(int)
 {
-    // Jumpstart IOAPIC and LAPIC
-    self->init = true;
+    lapic_ack();
+}
+
+int apic_register_interrupt(int gsi, hw_int_handler_t handler, void* ctx)
+{
+    int st;
+    int vector = int_vector_alloc(); // TODO: 1
+    if (vector < 0) return -1;
+
+    st = int_vector_populate(vector, gsi, handler, ctx); // TODO: 1
+    if (st <0) return st;
+
     return 0;
 }
 
-int apic_vector2gsi(struct hw_int_data_t* self, int vector)
+void apic_unregister_interrupt(int gsi)
 {
-    if (!self) return -1;
-    return vector - APIC_REMAP_OFFSET;
+    int vector = int_vector_find(gsi); // TODO: 1
+    if (vector < 0) return;
+    int_vector_free(vector, gsi);
 }
 
-void apic_ack(struct hw_int_data_t* self, int gsi)
+void apic_disable_interrupt(int gsi)
 {
-    if (!self) return;
-    // TODO
+    ioapic_cut_gsi(gsi);
 }
 
-void apic_enable_gsi(struct hw_int_data_t* self, int gsi)
+void apic_enable_interrupt(int gsi)
 {
-    if (!self) return;
-
+    int vector = int_vector_find(gsi);
+    if (vector < 0) return;
+    ioapic_redirect_gsi(gsi, vector, lapic_get_core_id());
 }
 
-void apic_disable_gsi(struct hw_int_data_t* self, int gsi)
-{
-    if (!self) return;
-
-}
-
-void apic_enable_all_gsis(struct hw_int_data_t* self)
-{
-    if (!self) return;
-
-}
-
-void apic_disable_all_gsis(struct hw_int_data_t* self)
-{
-    if (!self) return;
-
-}
-
-static const hw_int_ops_t ops = {
-    .vector2intno = &apic_vector2gsi,
-    .init = &apic_init,
-    .ack = &apic_ack,
-    .disable = &apic_disable_gsi,
-    .enable = &apic_enable_gsi,
-    .disable_all = &apic_disable_all_gsis,
-    .enable_all = &apic_enable_all_gsis
-};
-
-const hw_int_ops_t* apic_get_ops()
-{
-    return &ops;
-}
+// TODO 1: Needs a header file for interrupt vector allocation

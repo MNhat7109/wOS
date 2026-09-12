@@ -31,6 +31,7 @@ static struct
     void* table_base;
     usize table_size;
     usize entry_cnt;
+    bool init;
 } acpi_data;
 
 
@@ -94,12 +95,16 @@ int acpi_init(system_desc_ptr_t* sdp)
     mmu_vmem_free(rxsdt);
     mmu_vmem_free(rxsdp_base);
     mmu_vmem_free(sdp);
+
+    acpi_data.init = true;
     
     return status;
 }
 
 acpi_sdt_hdr_t* acpi_get_table(char* signature)
 {
+    if (!acpi_data.init) return NULL;
+
     for (usize i=0;i<acpi_data.entry_cnt;i++)
     {
         u64 table_base;

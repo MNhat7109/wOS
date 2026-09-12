@@ -13,7 +13,7 @@ void __attribute__((cdecl)) cpuid_notify_error()
     kdebugf(DEBUG_CRITICAL, MODULE_CPU, "Cannot use CPUID. Check if CPUID is supported in this machine.\n");
 }
 
-void __attribute__((cdecl)) cpuid(u32 func, u32 cpu_info_out[4])
+void __attribute__((cdecl)) cpuid(u32 func, cpuid_out_t* cpu_info_out)
 {
     cpuidex(func, 0, cpu_info_out);
 }

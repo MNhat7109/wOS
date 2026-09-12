@@ -97,6 +97,12 @@ int pic_init(struct hw_int_data_t* self)
     // Set up vars
     self->init = true;
     self->handler_cnt = 16;
+    self->hw_int_handler_table = (hw_int_wrapper_t*)mmu_heap_alloc(self->handler_cnt*sizeof(hw_int_wrapper_t));
+    for (usize i=0;i<self->handler_cnt;i++) 
+    {
+        self->hw_int_handler_table[i] = HANDLER_DEFAULT;
+        //
+    }
     return 0;
 }
 
@@ -134,6 +140,33 @@ void pic_disable_all_irqs(struct hw_int_data_t* self)
 {
     if (!self) return;
     pic_set_mask(0xFFFF);
+}
+
+int pic_register_interrupt(struct hw_int_data_t* self, int vector, int irq, hw_int_handler_t handler, void* ctx)
+{
+    if (!self) return -1;
+
+    if (irq >= self->handler_cnt) return -1;
+    if (!handler) return -1;
+
+    if (vector<PIC_REMAP_OFFSET || vector >= PIC_REMAP_OFFSET+16) return -1;
+
+    self->hw_int_handler_table[vector-PIC_REMAP_OFFSET] = (hw_int_wrapper_t){
+        .interrupt_num = irq,
+        .handler = handler,
+        .ctx = ctx
+    };
+    return 0;
+}
+
+int pic_unregister_interrupt(struct hw_int_data_t* self, int irq)
+{
+    if (!self) return -1;
+
+    if (irq >= self->handler_cnt) return -1;
+
+    self->hw_int_handler_table[irq] = HANDLER_DEFAULT;
+    return 0;
 }
 
 static const hw_int_ops_t ops = {

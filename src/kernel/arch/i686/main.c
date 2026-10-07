@@ -7,6 +7,7 @@
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_vmem.h>
 #include <kernel/mmu_heap.h>
+#include <kernel/irq.h>
 #include <kernel/arch/i686/gdt.h>
 #include <kernel/arch/i686/idt.h>
 #include <kernel/arch/i686/isr.h>
@@ -267,9 +268,15 @@ void kstart(boot_info_t* boot_inf)
 end:    for (;;);
 }
 
+void kbasestart()
+{
+    irq_init();
+}
+
 void kstage2()
 {
     kmmustage2();
+    kbasestart();
 end:
     for (;;);
 }

@@ -48,11 +48,11 @@ int acpi_init(system_desc_ptr_t* sdp)
     {
     case ACPI_TYPE_RSDP:
         acpi_data.ptr_stride = 4;
-        rxsdt = ((rsdp_t*)rxsdp_base)->rsdt_addr;
+        rxsdt = (void*)((rsdp_t*)rxsdp_base)->rsdt_addr;
         break;
     case ACPI_TYPE_XSDP:
         acpi_data.ptr_stride = 8;
-        rxsdt = ((xsdp_t*)rxsdp_base)->xsdt_addr;
+        rxsdt = (void*)((xsdp_t*)rxsdp_base)->xsdt_addr;
         break;
     default:
         status = -1;

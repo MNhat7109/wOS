@@ -7,7 +7,8 @@
 #include <kernel/mmu_frame.h>
 #include <kernel/mmu_vmem.h>
 #include <kernel/mmu_heap.h>
-#include <kernel/irq.h>
+#include <kernel/interrupt/irq.h>
+#include <kernel/interrupt/interrupt_vector.h>
 #include <kernel/arch/i686/gdt.h>
 #include <kernel/arch/i686/idt.h>
 #include <kernel/arch/i686/isr.h>
@@ -270,7 +271,9 @@ end:    for (;;);
 
 void kbasestart()
 {
+    interrupt_vector_init();
     irq_init();
+    kdebugf(DEBUG_INFO, MODULE_KRNL, "Hey there\n");
 }
 
 void kstage2()

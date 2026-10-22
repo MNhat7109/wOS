@@ -2,7 +2,7 @@
 #include <stdbool.h>
 #include <kernel/arch/i686/io.h>
 #include <kernel/arch/i686/irq.h>
-#include <kernel/irq.h>
+#include <kernel/interrupt/irq.h>
 #include <kernel/debug.h>
 
 #define PIC1_CMD_PORT 0x20
@@ -34,14 +34,21 @@ static struct
     u16 current_mask;
 } pic_data;
 
-void pic_register_irq(u8 irq, irq_dispatcher_cb_t cb, void* ctx);
-void pic_unregister_irq(u8 irq, irq_dispatcher_cb_t cb);
-void pic_ack(u8 irq);
+void pic_register_irq(int irq, int_dispatcher_cb_t cb, void* ctx);
+void pic_unregister_irq(int irq, int_dispatcher_cb_t cb);
+void pic_ack(int irq);
+void pic_enable_irq(int irq);
+void pic_disable_irq(int irq);
 
 static irq_ops_t pic_irq_ops = (irq_ops_t){
     .reg = &pic_register_irq,
     .unreg = &pic_unregister_irq,
-    .ack = &pic_ack
+};
+
+static int_dispatcher_ops_t pic_irq_disp_ops = (int_dispatcher_ops_t){
+    .ack = &pic_ack,
+    .enable_int = &pic_enable_irq,
+    .disable_int = &pic_disable_irq,
 };
 
 static void pic_set_mask(u16 mask)
@@ -59,12 +66,12 @@ static u16 pic_get_mask()
     return (inb(PIC2_DATA_PORT) << 8) | (inb(PIC1_DATA_PORT));
 }
 
-void pic_enable_irq(u8 irq)
+void pic_enable_irq(int irq)
 {
     pic_set_mask(pic_data.current_mask | (1<<irq));
 }
 
-void pic_disable_irq(u8 irq)
+void pic_disable_irq(int irq)
 {
     pic_set_mask(pic_data.current_mask & ~(1<<irq));
 }
@@ -78,7 +85,7 @@ static bool pic_existence_check()
     return (pic_get_mask() != 0xB00B);
 }
 
-int pic_init(u8 PIC_REMAP_OFFSET)
+const irq_ops_t* pic_init(u8 PIC_REMAP_OFFSET)
 {
     kdebugf(DEBUG_INFO, MODULE_IRQ, "Probing PIC...\n");
     // Probe the PIC first!
@@ -116,34 +123,32 @@ int pic_init(u8 PIC_REMAP_OFFSET)
     // Disable (Mask) all interrrupts by default, and only enable (Unmask) it when prompted
     pic_set_mask(0xFFFF);
 
-    irq_load_ops(&pic_irq_ops);
-    return 0;
+    return &pic_irq_ops;
 }
 
-void pic_register_irq(u8 irq, irq_dispatcher_cb_t cb, void* ctx)
+void pic_register_irq(int irq, int_dispatcher_cb_t cb, void* ctx)
 {
     if (irq >= 16) return;
     if (!cb) return;
     u8 vector = pic_data.remap_offset+irq;
-    irq_dispatch_blk_t* blk = irq_vector_find(SRC_PIC_IRQ, vector, cb);
-    if (blk) return;
-    int st = irq_vector_populate(SRC_PIC_IRQ, vector, irq, cb, ctx);
+    int st = interrupt_vector_populate(vector, irq, &pic_irq_disp_ops, cb, ctx);
     if (st < 0) return;
 
     pic_enable_irq(irq);
 }
 
-void pic_unregister_irq(u8 irq, irq_dispatcher_cb_t cb)
+void pic_unregister_irq(int irq, int_dispatcher_cb_t cb)
 {
     if (irq >= 16) return;
 
     u8 vector = pic_data.remap_offset +irq;
-    irq_vector_free(SRC_PIC_IRQ, vector, cb);
+    interrupt_vector_unlink_dispatcher(vector, cb);
 
     pic_disable_irq(irq);
 }
 
-void pic_ack(u8 irq)
+void pic_ack(int irq)
 {
     outb((irq >= 8 ? PIC2_CMD_PORT : PIC1_CMD_PORT), PIC_CMD_EOI);
 }
+
